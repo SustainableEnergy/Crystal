@@ -3,13 +3,15 @@ interface MobileHeaderProps {
     onToggleControls: () => void;
     spaceGroupOpen: boolean;
     controlsOpen: boolean;
+    onToggleStructureSelector: () => void;
 }
 
 export const MobileHeader = ({
     onToggleSpaceGroup,
     onToggleControls,
     spaceGroupOpen,
-    controlsOpen
+    controlsOpen,
+    onToggleStructureSelector
 }: MobileHeaderProps) => {
     return (
         <div style={{
@@ -28,11 +30,11 @@ export const MobileHeader = ({
             zIndex: 1000,
             boxShadow: '0 2px 10px rgba(0, 0, 0, 0.3)'
         }}>
-            {/* Left: Space Group Toggle */}
+            {/* Left: Structure Selector */}
             <button
-                onClick={onToggleSpaceGroup}
+                onClick={onToggleStructureSelector}
                 style={{
-                    background: spaceGroupOpen ? 'rgba(102, 126, 234, 0.2)' : 'transparent',
+                    background: 'rgba(102, 126, 234, 0.2)',
                     border: '1px solid rgba(102, 126, 234, 0.3)',
                     borderRadius: '8px',
                     padding: '8px 12px',
@@ -47,22 +49,28 @@ export const MobileHeader = ({
                     transition: 'all 0.2s ease'
                 }}
             >
-                <span style={{ fontSize: '16px' }}>{spaceGroupOpen ? '▼' : '▶'}</span>
-                Space Group
+                <span style={{ fontSize: '16px' }}>🔋</span>
+                Structure
             </button>
 
-            {/* Center: Title */}
-            <div style={{
-                color: 'white',
-                fontSize: '16px',
-                fontWeight: '600',
-                letterSpacing: '-0.02em',
-                textAlign: 'center',
-                flex: 1,
-                padding: '0 8px'
-            }}>
-                Cathode Visualizer
-            </div>
+            {/* Center: Space Group Toggle */}
+            <button
+                onClick={onToggleSpaceGroup}
+                style={{
+                    background: spaceGroupOpen ? 'rgba(102, 126, 234, 0.2)' : 'transparent',
+                    border: '1px solid rgba(102, 126, 234, 0.3)',
+                    borderRadius: '8px',
+                    padding: '8px',
+                    color: '#FFF8F0',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    minHeight: '44px',
+                    transition: 'all 0.2s ease'
+                }}
+            >
+                <span style={{ fontSize: '14px' }}>{spaceGroupOpen ? '▼' : '▶'}</span> Info
+            </button>
 
             {/* Right: Controls Toggle */}
             <button

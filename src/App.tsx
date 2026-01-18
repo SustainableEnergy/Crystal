@@ -7,10 +7,13 @@ import { StructureScene, ExportButton } from './components/scene/StructureScene'
 import { ErrorBoundary } from './components/UI/ErrorBoundary'
 import { SpaceGroupPanel } from './components/UI/SpaceGroupPanel'
 import { MobileHeader } from './components/UI/MobileHeader'
+import { StructureSelector } from './components/UI/StructureSelector'
+import { SnapshotButton } from './components/UI/SnapshotButton'
+import { CameraPresets, type CameraPreset } from './components/UI/CameraPresets'
 import { useIsMobile } from './hooks/useMediaQuery'
 import * as THREE from 'three'
 
-// Dynamic Lights Component that responds to lighting values
+// Dynamic Lights Component
 function DynamicLights() {
   const keyLightRef = useRef<THREE.DirectionalLight>(null);
   const fillLightRef = useRef<THREE.DirectionalLight>(null);
@@ -20,7 +23,6 @@ function DynamicLights() {
 
   useFrame(() => {
     const structureGroup = scene.children.find((child: any) => child.userData?.keyIntensity !== undefined);
-
     if (structureGroup && structureGroup.userData) {
       if (keyLightRef.current) keyLightRef.current.intensity = structureGroup.userData.keyIntensity || 1.5;
       if (fillLightRef.current) fillLightRef.current.intensity = structureGroup.userData.fillIntensity || 0.5;
@@ -56,7 +58,7 @@ function DynamicLights() {
 }
 
 function App() {
-  const sceneRef = useRef<any>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showExport, setShowExport] = useState(false);
   const [spaceGroupInfo, setSpaceGroupInfo] = useState({
     material: 'NCM',
@@ -67,10 +69,44 @@ function App() {
   const isMobile = useIsMobile();
   const [spaceGroupOpen, setSpaceGroupOpen] = useState(false);
   const [controlsOpen, setControlsOpen] = useState(false);
+  const [structureSelectorOpen, setStructureSelectorOpen] = useState(false);
+
+  // New states
+  const [currentStructure, setCurrentStructure] = useState('NCM');
+  const [currentCameraPreset, setCurrentCameraPreset] = useState('Isometric');
+  const [cifData, setCifData] = useState<string | undefined>();
 
   const handleResetCamera = () => {
     const event = new CustomEvent('reset-camera');
     window.dispatchEvent(event);
+  };
+
+  const handleStructureChange = (structure: string, data?: string) => {
+    setCurrentStructure(structure);
+    if (data) {
+      setCifData(data);
+    }
+    const event = new CustomEvent('structure-change', { detail: { structure, cifData: data } });
+    window.dispatchEvent(event);
+    setStructureSelectorOpen(false);
+  };
+
+  const handleCameraPresetChange = (preset: CameraPreset) => {
+    setCurrentCameraPreset(preset.name);
+    const event = new CustomEvent('camera-preset-change', { detail: preset });
+    window.dispatchEvent(event);
+  };
+
+  const handleSnapshot = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Create high-res snapshot
+    const dataURL = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = `cathode-${currentStructure}-${Date.now()}.png`;
+    link.href = dataURL;
+    link.click();
   };
 
   useEffect(() => {
@@ -88,16 +124,66 @@ function App() {
         <MobileHeader
           onToggleSpaceGroup={() => setSpaceGroupOpen(!spaceGroupOpen)}
           onToggleControls={() => setControlsOpen(!controlsOpen)}
+          onToggleStructureSelector={() => setStructureSelectorOpen(!structureSelectorOpen)}
           spaceGroupOpen={spaceGroupOpen}
           controlsOpen={controlsOpen}
         />
       )}
 
-      {/* Leva Controls - Responsive positioning */}
+      {/* Desktop Top Bar */}
+      {!isMobile && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          left: '20px',
+          right: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          zIndex: 100,
+          pointerEvents: 'none'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', pointerEvents: 'auto' }}>
+            <div>
+              <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 300, color: 'white', letterSpacing: '-0.02em' }}>
+                Cathode Visualizer
+              </h1>
+              <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.6, color: '#888' }}>
+                High-Fidelity Crystal Engine
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', pointerEvents: 'auto' }}>
+            <StructureSelector
+              currentStructure={currentStructure}
+              onStructureChange={handleStructureChange}
+              isMobile={false}
+            />
+            <CameraPresets
+              currentPreset={currentCameraPreset}
+              onPresetChange={handleCameraPresetChange}
+              isMobile={false}
+            />
+            <SnapshotButton onCapture={handleSnapshot} isMobile={false} />
+          </div>
+        </div>
+      )}
+
+      {/* Mobile: Structure Selector Modal */}
+      {isMobile && structureSelectorOpen && (
+        <StructureSelector
+          currentStructure={currentStructure}
+          onStructureChange={handleStructureChange}
+          isMobile={true}
+        />
+      )}
+
+      {/* Leva Controls -Responsive */}
       <div style={{
         position: 'fixed',
         top: isMobile ? (controlsOpen ? '56px' : '-1000px') : '0',
-        right: isMobile ? '0' : '0',
+        right: '0',
         left: isMobile ? '0' : 'auto',
         width: isMobile ? '100%' : 'auto',
         zIndex: isMobile ? 998 : 'auto',
@@ -176,11 +262,6 @@ function App() {
           color: #FFF8F0 !important;
         }
 
-        .leva__color-input,
-        input[type="color"] {
-          /* Let Leva handle color pickers naturally */
-        }
-
         @media (max-width: 767px) {
           .leva-c-ksNwjm {
             width: 100% !important;
@@ -191,60 +272,38 @@ function App() {
 
       <div style={{ width: '100vw', height: '100vh', background: '#050505' }}>
         <Canvas
+          ref={canvasRef}
           camera={{ position: [20, 15, 50], fov: 60 }}
           dpr={[1, 2]}
           gl={{
             antialias: true,
             alpha: false,
             toneMappingExposure: 1.0,
-            localClippingEnabled: true
+            localClippingEnabled: true,
+            preserveDrawingBuffer: true
           }}
-          onCreated={({ gl }) => {
-            sceneRef.current = gl;
+          onCreated={() => {
             setShowExport(true);
           }}
         >
           <color attach="background" args={['#0a0a0a']} />
-
-          <Environment
-            preset="studio"
-            environmentIntensity={0.4}
-            backgroundBlurriness={0.8}
-          />
-
+          <Environment preset="studio" environmentIntensity={0.4} backgroundBlurriness={0.8} />
           <DynamicLights />
-
           <Suspense fallback={null}>
-            <StructureScene onSpaceGroupUpdate={setSpaceGroupInfo} />
+            <StructureScene
+              onSpaceGroupUpdate={setSpaceGroupInfo}
+            />
           </Suspense>
-
-          <ContactShadows
-            position={[0, -2.5, 0]}
-            opacity={0.15}
-            scale={25}
-            blur={3}
-            far={4}
-          />
-
+          <ContactShadows position={[0, -2.5, 0]} opacity={0.15} scale={25} blur={3} far={4} />
           <EffectComposer>
-            <Bloom
-              luminanceThreshold={0.9}
-              mipmapBlur
-              intensity={0.4}
-              radius={0.6}
-              levels={8}
-            />
+            <Bloom luminanceThreshold={0.9} mipmapBlur intensity={0.4} radius={0.6} levels={8} />
             <Vignette eskil={false} offset={0.05} darkness={0.7} />
-            <SSAO
-              radius={0.3}
-              intensity={20}
-              luminanceInfluence={0.6}
-            />
+            <SSAO radius={0.3} intensity={20} luminanceInfluence={0.6} />
           </EffectComposer>
         </Canvas>
       </div>
 
-      {/* Space Group Panel - Responsive */}
+      {/* Space Group Panel */}
       <SpaceGroupPanel
         material={spaceGroupInfo.material}
         unitCell={spaceGroupInfo.unitCell}
@@ -252,70 +311,106 @@ function App() {
         isOpen={isMobile ? spaceGroupOpen : true}
       />
 
-      {/* Desktop Title */}
+      {/* Desktop Footer */}
       {!isMobile && (
-        <>
-          <div style={{ position: 'absolute', top: 30, left: 30, pointerEvents: 'none', color: '#888', zIndex: 10 }}>
-            <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 300, color: 'white', letterSpacing: '-0.02em' }}>Cathode Visualizer</h1>
-            <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.6 }}>High-Fidelity Crystal Engine</p>
-          </div>
-
-          <div style={{ position: 'absolute', bottom: 30, right: 30, pointerEvents: 'none', color: '#666', zIndex: 10, textAlign: 'right' }}>
-            <p style={{ margin: 0, fontSize: '0.8rem' }}>Universal 3D Asset Generator</p>
-          </div>
-        </>
+        <div style={{ position: 'absolute', bottom: 30, right: 30, pointerEvents: 'none', color: '#666', zIndex: 10, textAlign: 'right' }}>
+          <p style={{ margin: 0, fontSize: '0.8rem' }}>Universal 3D Asset Generator</p>
+        </div>
       )}
 
-      {/* Reset View Button - Responsive */}
-      <button
-        onClick={handleResetCamera}
-        style={{
-          position: 'fixed',
-          bottom: isMobile ? '16px' : '30px',
-          left: isMobile ? '16px' : '220px',
-          padding: isMobile ? '10px 16px' : '12px 20px',
-          background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-          color: 'white',
-          border: 'none',
-          borderRadius: '8px',
-          cursor: 'pointer',
-          fontSize: isMobile ? '13px' : '14px',
-          fontWeight: '600',
-          boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)',
-          transition: 'all 0.3s ease',
-          zIndex: 1000,
-          pointerEvents: 'auto',
-          minHeight: '44px'
-        }}
-        onMouseEnter={(e) => {
-          if (!isMobile) {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.6)';
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!isMobile) {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 4px 15px rgba(59, 130, 246, 0.4)';
-          }
-        }}
-      >
-        Reset View
-      </button>
-
-      {/* Export Button - Desktop Only */}
-      {showExport && !isMobile && (
+      {/* Mobile: Bottom Action Bar */}
+      {isMobile && (
         <div style={{
           position: 'fixed',
-          bottom: '30px',
-          right: '30px',
-          zIndex: 1000
+          bottom: 0,
+          left: 0,
+          right: 0,
+          padding: '12px',
+          background: 'linear-gradient(180deg, transparent 0%, rgba(10, 10, 10, 0.95) 20%)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+          zIndex: 999,
+          pointerEvents: 'none'
         }}>
-          <ExportButton onClick={() => {
-            const event = new CustomEvent('export-model');
-            window.dispatchEvent(event);
-          }} />
+          <div style={{ pointerEvents: 'auto' }}>
+            <SnapshotButton onCapture={handleSnapshot} isMobile={true} />
+          </div>
+
+          <button
+            onClick={handleResetCamera}
+            style={{
+              padding: '10px 16px',
+              background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+              border: 'none',
+              borderRadius: '8px',
+              color: 'white',
+              fontSize: '13px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)',
+              minHeight: '44px',
+              pointerEvents: 'auto'
+            }}
+          >
+            Reset View
+          </button>
+
+          <div style={{ pointerEvents: 'auto' }}>
+            <CameraPresets
+              currentPreset={currentCameraPreset}
+              onPresetChange={handleCameraPresetChange}
+              isMobile={true}
+            />
+          </div>
         </div>
+      )}
+
+      {/* Desktop: Reset & Export */}
+      {!isMobile && (
+        <>
+          <button
+            onClick={handleResetCamera}
+            style={{
+              position: 'fixed',
+              bottom: '30px',
+              left: '220px',
+              padding: '12px 20px',
+              background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+              border: 'none',
+              borderRadius: '8px',
+              color: 'white',
+              fontSize: '14px',
+              fontWeight: '600',
+              boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)',
+              transition: 'all 0.3s ease',
+              zIndex: 1000,
+              pointerEvents: 'auto',
+              cursor: 'pointer'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.6)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 15px rgba(59, 130, 246, 0.4)';
+            }}
+          >
+            Reset View
+          </button>
+
+          {showExport && (
+            <div style={{ position: 'fixed', bottom: '30px', right: '30px', zIndex: 1000 }}>
+              <ExportButton onClick={() => {
+                const event = new CustomEvent('export-model');
+                window.dispatchEvent(event);
+              }} />
+            </div>
+          )}
+        </>
       )}
     </ErrorBoundary>
   )
