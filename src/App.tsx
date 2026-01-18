@@ -9,7 +9,6 @@ import { SpaceGroupPanel } from './components/UI/SpaceGroupPanel'
 import { MobileHeader } from './components/UI/MobileHeader'
 import { StructureSelector } from './components/UI/StructureSelector'
 import { SnapshotButton } from './components/UI/SnapshotButton'
-import { CameraPresets, type CameraPreset } from './components/UI/CameraPresets'
 import { useIsMobile } from './hooks/useMediaQuery'
 import * as THREE from 'three'
 
@@ -72,25 +71,26 @@ function App() {
   const [structureSelectorOpen, setStructureSelectorOpen] = useState(false);
 
   // New states
-  const [currentStructure, setCurrentStructure] = useState('NCM');
-  const [currentCameraPreset, setCurrentCameraPreset] = useState('Isometric');
+  const [currentStructure, setCurrentStructure] = useState('NCM-811');
 
   const handleResetCamera = () => {
     const event = new CustomEvent('reset-camera');
     window.dispatchEvent(event);
   };
 
-  const handleStructureChange = (structure: string, data?: string) => {
-    setCurrentStructure(structure);
-    const event = new CustomEvent('structure-change', { detail: { structure, cifData: data } });
+  const handleStructureChange = (structure: string, ncmRatioOrCifData?: string) => {
+    let finalStructure = structure;
+
+    if (structure === 'NCM' && ncmRatioOrCifData) {
+      finalStructure = `NCM-${ncmRatioOrCifData}`;
+    }
+
+    setCurrentStructure(finalStructure);
+    const event = new CustomEvent('structure-change', {
+      detail: { structure: finalStructure, cifData: structure === 'CIF Option' ? ncmRatioOrCifData : undefined }
+    });
     window.dispatchEvent(event);
     setStructureSelectorOpen(false);
-  };
-
-  const handleCameraPresetChange = (preset: CameraPreset) => {
-    setCurrentCameraPreset(preset.name);
-    const event = new CustomEvent('camera-preset-change', { detail: preset });
-    window.dispatchEvent(event);
   };
 
   const handleSnapshot = () => {
@@ -156,11 +156,6 @@ function App() {
               onStructureChange={handleStructureChange}
               isMobile={false}
             />
-            <CameraPresets
-              currentPreset={currentCameraPreset}
-              onPresetChange={handleCameraPresetChange}
-              isMobile={false}
-            />
             <SnapshotButton onCapture={handleSnapshot} isMobile={false} />
           </div>
         </div>
@@ -182,7 +177,7 @@ function App() {
         right: '0',
         left: isMobile ? '0' : 'auto',
         width: isMobile ? '100%' : 'auto',
-        zIndex: isMobile ? 998 : 'auto',
+        zIndex: isMobile ? 998 : 1000,
         transition: 'top 0.3s ease',
         maxHeight: isMobile ? 'calc(100vh - 56px)' : 'auto',
         overflowY: isMobile ? 'auto' : 'visible'
@@ -229,7 +224,7 @@ function App() {
             }
           }}
           titleBar={{
-            title: '⚙️ Controls',
+            title: 'Controls',
             drag: !isMobile,
             filter: true
           }}
@@ -354,13 +349,7 @@ function App() {
             Reset View
           </button>
 
-          <div style={{ pointerEvents: 'auto' }}>
-            <CameraPresets
-              currentPreset={currentCameraPreset}
-              onPresetChange={handleCameraPresetChange}
-              isMobile={true}
-            />
-          </div>
+
         </div>
       )}
 
@@ -372,7 +361,7 @@ function App() {
             style={{
               position: 'fixed',
               bottom: '30px',
-              left: '220px',
+              left: '190px',
               padding: '12px 20px',
               background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
               border: 'none',
@@ -399,7 +388,7 @@ function App() {
           </button>
 
           {showExport && (
-            <div style={{ position: 'fixed', bottom: '30px', right: '30px', zIndex: 1000 }}>
+            <div style={{ position: 'fixed', bottom: '30px', left: '30px', zIndex: 1000 }}>
               <ExportButton onClick={() => {
                 const event = new CustomEvent('export-model');
                 window.dispatchEvent(event);

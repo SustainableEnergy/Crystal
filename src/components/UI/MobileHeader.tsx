@@ -49,7 +49,6 @@ export const MobileHeader = ({
                     transition: 'all 0.2s ease'
                 }}
             >
-                <span style={{ fontSize: '16px' }}>🔋</span>
                 Structure
             </button>
 
@@ -91,8 +90,7 @@ export const MobileHeader = ({
                     transition: 'all 0.2s ease'
                 }}
             >
-                <span style={{ fontSize: '18px' }}>⚙</span>
-                {controlsOpen ? '▼' : '▶'}
+                Controls {controlsOpen ? '▼' : '▶'}
             </button>
         </div>
     );

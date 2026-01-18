@@ -36,7 +36,6 @@ export const SnapshotButton = ({ onCapture, isMobile = false }: SnapshotButtonPr
                 }
             }}
         >
-            <span style={{ fontSize: '18px' }}>📷</span>
             {!isMobile && <span>Snapshot</span>}
         </button>
     );
