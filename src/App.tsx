@@ -191,7 +191,7 @@ function App() {
 
       <div style={{ width: '100vw', height: '100vh', background: '#050505' }}>
         <Canvas
-          camera={{ position: [0, 0, 60], fov: 60 }}
+          camera={{ position: [20, 15, 50], fov: 60 }}
           dpr={[1, 2]}
           gl={{
             antialias: true,
@@ -303,12 +303,12 @@ function App() {
         Reset View
       </button>
 
-      {/* Export Button - Responsive */}
-      {showExport && (
+      {/* Export Button - Desktop Only */}
+      {showExport && !isMobile && (
         <div style={{
           position: 'fixed',
-          bottom: isMobile ? '16px' : '30px',
-          right: isMobile ? '16px' : '30px',
+          bottom: '30px',
+          right: '30px',
           zIndex: 1000
         }}>
           <ExportButton onClick={() => {

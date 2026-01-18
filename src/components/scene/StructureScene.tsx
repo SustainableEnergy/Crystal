@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from 'react';
+﻿import { useMemo, useRef, useState, useEffect } from 'react';
 import { useControls, folder, button, monitor } from 'leva';
 import * as THREE from 'three';
 import { generateNCM } from '../../core/builders/NCMBuilder';
@@ -162,8 +162,8 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
     });
 
     const { autoRotate, autoRotateSpeed } = useControls('🎥 Camera', {
-        autoRotate: { value: false },
-        autoRotateSpeed: { value: 1.0, min: 0.1, max: 10, render: (get) => get('🎥 Camera.autoRotate') },
+        autoRotate: { value: true },
+        autoRotateSpeed: { value: 1.5, min: 0.1, max: 10, render: (get) => get('🎥 Camera.autoRotate') },
     });
 
     // Lighting Controls with Presets
@@ -356,3 +356,4 @@ export const ExportButton = ({ onClick }: { onClick: () => void }) => (
         📦 Export 3D Model
     </button>
 );
+
