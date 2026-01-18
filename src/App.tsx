@@ -388,7 +388,7 @@ function App() {
           </button>
 
           {showExport && (
-            <div style={{ position: 'fixed', bottom: '30px', left: '360px', zIndex: 1000 }}>
+            <div style={{ position: 'fixed', bottom: '30px', left: '30px', zIndex: 1000 }}>
               <ExportButton onClick={() => {
                 const event = new CustomEvent('export-model');
                 window.dispatchEvent(event);
