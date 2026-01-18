@@ -1,6 +1,5 @@
 import type { Atom, StructureData } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-import * as THREE from 'three';
 
 // Robust, dependency-free CIF Parser for Browser
 export const parseCIF = (cifText: string): StructureData => {

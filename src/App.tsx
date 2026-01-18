@@ -211,7 +211,7 @@ function App() {
               radius={0.3}
               intensity={20}
               luminanceInfluence={0.6}
-              color="black"
+              color="#000000"
             />
           </EffectComposer>
         </Canvas>
