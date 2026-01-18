@@ -38,6 +38,17 @@ export const generateLCO = (nx = 3, ny = 3, nz = 1): StructureData => {
         [1 / 3, 2 / 3, 2 / 3]
     ];
 
+    // Z-shift to align Polyhedra (TM) to 0, 1/3, 2/3 for visual continuity
+    // Original (hex setting 0,0,0): Li at 0, Co at 0.5.
+    // Shift -1/6: Co(0.5) -> 0.33, Co(0.16) -> 0.0.
+    // This puts dense polyhedra layers at integer boundaries and 1/3, 2/3.
+    const z_shift = -1.0 / 6.0;
+
+    const normalize = (v: number) => {
+        const result = (v % 1.0 + 1.0) % 1.0;
+        return result < 0.0001 ? 0.0 : (result > 0.9999 ? 0.0 : result);
+    };
+
     // Generate Supercell
     for (let ix = 0; ix < nx; ix++) {
         for (let iy = 0; iy < ny; iy++) {
@@ -46,18 +57,20 @@ export const generateLCO = (nx = 3, ny = 3, nz = 1): StructureData => {
                 // Apply R-3m centering shifts
                 for (const [sx, sy, sz] of shifts) {
 
-                    // Li at 3a: (0, 0, 0) + rhombohedral shifts
-                    addAtom(ix + sx, iy + sy, iz + sz + 0, 'Li');
+                    // Li at 3a: (0, 0, 0)
+                    const z_li = normalize(sz + 0.0 + z_shift);
+                    addAtom(ix + sx, iy + sy, iz + z_li, 'Li');
 
-                    // Co at 3b: (0, 0, 0.5) + rhombohedral shifts
-                    addAtom(ix + sx, iy + sy, iz + sz + 0.5, 'Co');
+                    // Co at 3b: (0, 0, 0.5)
+                    const z_co = normalize(sz + 0.5 + z_shift);
+                    addAtom(ix + sx, iy + sy, iz + z_co, 'Co');
 
-                    // O at 6c: (0, 0, ±z) + rhombohedral shifts
-                    // Use +z and -z, but normalize -z to positive via modulo
-                    addAtom(ix + sx, iy + sy, iz + sz + z_o, 'O');
-                    // For -z_o, add 1.0 to keep it positive (periodic boundary condition)
-                    const normalized_neg_z = iz + sz + (1.0 - z_o);
-                    addAtom(ix + sx, iy + sy, normalized_neg_z, 'O');
+                    // O at 6c: (0, 0, z) and (0, 0, -z)
+                    const z_o1 = normalize(sz + z_o + z_shift);
+                    addAtom(ix + sx, iy + sy, iz + z_o1, 'O');
+
+                    const z_o2 = normalize(sz + (1.0 - z_o) + z_shift);
+                    addAtom(ix + sx, iy + sy, iz + z_o2, 'O');
                 }
             }
         }

@@ -8,6 +8,7 @@ import { Atoms } from './Atoms';
 import { Bonds } from './Bonds';
 import { Polyhedra } from './Polyhedra';
 import { Center, OrbitControls, Environment } from '@react-three/drei';
+import { EffectComposer, SSAO, Bloom } from '@react-three/postprocessing';
 import { exportScene } from '../../core/utils/Exporter';
 import type { Atom } from '../../core/types';
 import { v4 as uuidv4 } from 'uuid';
@@ -185,7 +186,8 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
         preset, radiusScale,
         roughness, metalness, clearcoat, transmission, ior, thickness, emissiveIntensity,
         showBonds, showPolyhedra, showAxes,
-        clipXMin, clipXMax, clipYMin, clipYMax, clipZMin, clipZMax
+        clipXMin, clipXMax, clipYMin, clipYMax, clipZMin, clipZMax,
+        enableSSAO, ssaoIntensity, enableBloom, enableFog, fogNear, fogFar, backlightIntensity
     } = useControls('🎨 Visual Style', {
         'Material': folder({
             preset: { options: ['Ceramic', 'Metallic', 'Matte', 'Glass', 'Plastic', 'Emissive', 'Custom'], value: 'Matte' },
@@ -212,6 +214,15 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
             clipYMax: { value: 100, min: 0, max: 100, label: 'Clip Y Max' },
             clipZMin: { value: 0, min: 0, max: 100, label: 'Clip Z Min' },
             clipZMax: { value: 100, min: 0, max: 100, label: 'Clip Z Max' },
+        }),
+        'Effects (Beta)': folder({
+            enableSSAO: { value: true, label: 'Enable Volume (SSAO)' },
+            ssaoIntensity: { value: 40, min: 0, max: 100, label: 'Volume Strength', render: (get) => get('🎨 Visual Style.Effects (Beta).enableSSAO') },
+            enableBloom: { value: true, label: 'Enable Glow (Bloom)' },
+            enableFog: { value: true, label: 'Enable Depth Fog' },
+            fogNear: { value: 10, min: 0, max: 50, label: 'Fog Start', render: (get) => get('🎨 Visual Style.Effects (Beta).enableFog') },
+            fogFar: { value: 80, min: 20, max: 200, label: 'Fog End', render: (get) => get('🎨 Visual Style.Effects (Beta).enableFog') },
+            backlightIntensity: { value: 2.0, min: 0, max: 5, label: 'Rim Light' }
         })
     });
 
@@ -384,6 +395,10 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
         return () => window.removeEventListener('reset-camera', handleReset);
     }, []);
 
+    const effects = [];
+    if (enableSSAO) effects.push(<SSAO key="ssao" intensity={ssaoIntensity} radius={0.03} luminanceInfluence={0.5} />);
+    if (enableBloom) effects.push(<Bloom key="bloom" intensity={0.5} luminanceThreshold={0.85} radius={0.6} mipmapBlur />);
+
     return (
         <ErrorBoundary name="StructureScene">
             <ElementController
@@ -398,6 +413,13 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
                 rimIntensity: lightingValues.rim,
                 ambientIntensity: lightingValues.ambient
             }}>
+                <color attach="background" args={['#f8f9fa']} />
+                {enableFog && <fog attach="fog" args={['#f8f9fa', fogNear, fogFar]} />}
+
+                {/* Backlight for Rim Effect */}
+                <directionalLight position={[0, 5, -10]} intensity={backlightIntensity} color="#ffffff" />
+                <directionalLight position={[0, -5, -10]} intensity={backlightIntensity * 0.5} color="#cbd5e1" />
+
                 <Environment preset={lightingValues.env as any} blur={0.6} />
                 <Center key={material} onCentered={() => {
                     // Force re-render after centering to fix disappearing atoms
@@ -421,6 +443,13 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
                         {showAxes && <axesHelper args={[5]} />}
                     </group>
                 </Center>
+
+                {/* Post Processing Effects */}
+                {effects.length > 0 && (
+                    <EffectComposer>
+                        {effects}
+                    </EffectComposer>
+                )}
             </group>
 
             <OrbitControls

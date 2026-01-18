@@ -9,6 +9,7 @@ import { SpaceGroupPanel } from './components/UI/SpaceGroupPanel'
 import { MobileHeader } from './components/UI/MobileHeader'
 import { StructureSelector } from './components/UI/StructureSelector'
 import { SnapshotButton } from './components/UI/SnapshotButton'
+import { Legend } from './components/UI/Legend'
 import { useIsMobile } from './hooks/useMediaQuery'
 import * as THREE from 'three'
 
@@ -395,6 +396,17 @@ function App() {
             </div>
           )}
         </>
+      )}
+
+      <Legend material={currentStructure} />
+
+      {(!isMobile || structureSelectorOpen) && (
+        <StructureSelector
+          currentStructure={currentStructure}
+          onStructureChange={handleStructureChange}
+          isMobile={isMobile}
+          onClose={() => setStructureSelectorOpen(false)}
+        />
       )}
     </ErrorBoundary>
   )
