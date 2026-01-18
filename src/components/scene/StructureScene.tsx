@@ -1,5 +1,5 @@
 ﻿import { useMemo, useRef, useState, useEffect } from 'react';
-import { useControls, folder, button, monitor } from 'leva';
+import { useControls, folder, button, monitor, buttonGroup } from 'leva';
 import * as THREE from 'three';
 import { generateNCM } from '../../core/builders/NCMBuilder';
 import { generateLFP } from '../../core/builders/LFPBuilder';
@@ -7,7 +7,7 @@ import { parseCIF } from '../../core/utils/CIFParser';
 import { Atoms } from './Atoms';
 import { Bonds } from './Bonds';
 import { Polyhedra } from './Polyhedra';
-import { Center, OrbitControls } from '@react-three/drei';
+import { Center, OrbitControls, Environment } from '@react-three/drei';
 import { exportScene } from '../../core/utils/Exporter';
 import type { Atom } from '../../core/types';
 import { v4 as uuidv4 } from 'uuid';
@@ -93,19 +93,60 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
     // Get default values based on material
     const getDefaultCellSize = () => {
         const baseMat = material.split('-')[0];
-        if (baseMat === 'LFP') return { nx: 4, ny: 4, nz: 7 };
-        if (baseMat === 'NCM') return { nx: 5, ny: 5, nz: 3 };
+        if (baseMat === 'LFP') return { nx: 3, ny: 3, nz: 6 };
+        if (baseMat === 'NCM') return { nx: 6, ny: 6, nz: 3 };
         return { nx: 4, ny: 4, nz: 4 };
     };
 
     const defaults = getDefaultCellSize();
 
     // Hierarchical Controls - Material removed from Leva
-    const { nx, ny, nz } = useControls('Unit Cell', {
+    // Hierarchical Controls - Material removed from Leva
+    const [unitCellParams, setUnitCell] = useControls('Unit Cell', () => ({
         nx: { value: defaults.nx, min: 1, max: 10, step: 1, label: 'X Repeat', render: () => ['NCM', 'LFP'].includes(material.split('-')[0]) },
+        'adj_x': buttonGroup({
+            '-': (get) => {
+                const val = get('Unit Cell.nx');
+                if (typeof val === 'number') setUnitCell({ nx: Math.max(1, val - 1) });
+            },
+            '+': (get) => {
+                const val = get('Unit Cell.nx');
+                if (typeof val === 'number') setUnitCell({ nx: Math.min(10, val + 1) });
+            },
+        }),
+
         ny: { value: defaults.ny, min: 1, max: 10, step: 1, label: 'Y Repeat', render: () => ['NCM', 'LFP'].includes(material.split('-')[0]) },
+        'adj_y': buttonGroup({
+            '-': (get) => {
+                const val = get('Unit Cell.ny');
+                if (typeof val === 'number') setUnitCell({ ny: Math.max(1, val - 1) });
+            },
+            '+': (get) => {
+                const val = get('Unit Cell.ny');
+                if (typeof val === 'number') setUnitCell({ ny: Math.min(10, val + 1) });
+            },
+        }),
+
         nz: { value: defaults.nz, min: 1, max: 10, step: 1, label: 'Z Repeat', render: () => ['NCM', 'LFP'].includes(material.split('-')[0]) },
-    }, [material]);
+        'adj_z': buttonGroup({
+            '-': (get) => {
+                const val = get('Unit Cell.nz');
+                if (typeof val === 'number') setUnitCell({ nz: Math.max(1, val - 1) });
+            },
+            '+': (get) => {
+                const val = get('Unit Cell.nz');
+                if (typeof val === 'number') setUnitCell({ nz: Math.min(10, val + 1) });
+            },
+        }),
+    }), [material]); // Dependency ensures reconstruction if needed, but useEffect handles value update
+
+    const { nx, ny, nz } = unitCellParams;
+
+    // Force update Leva controls when material changes
+    useEffect(() => {
+        const d = getDefaultCellSize();
+        setUnitCell({ nx: d.nx, ny: d.ny, nz: d.nz });
+    }, [material, setUnitCell]);
 
     useControls('🧱 LEGO Builder', {
         legoElement: { options: ['Li', 'Co', 'Ni', 'Mn', 'Fe', 'P', 'O'], value: 'Li' },
@@ -144,7 +185,7 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
         preset, radiusScale,
         roughness, metalness, clearcoat, transmission, ior, thickness, emissiveIntensity,
         showBonds, showPolyhedra, showAxes,
-        clipX, clipY, clipZ
+        clipXMin, clipXMax, clipYMin, clipYMax, clipZMin, clipZMax
     } = useControls('🎨 Visual Style', {
         'Material': folder({
             preset: { options: ['Ceramic', 'Metallic', 'Matte', 'Glass', 'Plastic', 'Emissive', 'Custom'], value: 'Matte' },
@@ -163,12 +204,14 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
             showBonds: { value: false, label: 'Show Bonds' },
             showPolyhedra: { value: true, label: 'Show Polyhedra', render: (get) => !['LEGO', 'CIF Option'].includes(get('📦 Structure.material')) },
             showAxes: { value: false, label: 'Show Pivot' },
-            showUnitCell: { value: false, label: 'Unit Cell Box' },
         }),
         'Clipping': folder({
-            clipX: { value: 100, min: 0, max: 100, label: 'Clip X' },
-            clipY: { value: 100, min: 0, max: 100, label: 'Clip Y' },
-            clipZ: { value: 100, min: 0, max: 100, label: 'Clip Z' },
+            clipXMin: { value: 0, min: 0, max: 100, label: 'Clip X Min' },
+            clipXMax: { value: 100, min: 0, max: 100, label: 'Clip X Max' },
+            clipYMin: { value: 0, min: 0, max: 100, label: 'Clip Y Min' },
+            clipYMax: { value: 100, min: 0, max: 100, label: 'Clip Y Max' },
+            clipZMin: { value: 0, min: 0, max: 100, label: 'Clip Z Min' },
+            clipZMax: { value: 100, min: 0, max: 100, label: 'Clip Z Max' },
         })
     });
 
@@ -178,6 +221,9 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
             const { structure } = e.detail;
             console.log('Structure change event:', structure);
             setMaterial(structure);
+
+            // Trigger camera reset
+            window.dispatchEvent(new Event('reset-camera'));
 
             // Extract NCM ratio if present
             if (structure.startsWith('NCM-')) {
@@ -234,16 +280,16 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
         ambientIntensity: { value: 0.3, min: 0, max: 2, label: 'Ambient', render: (get) => get('💡 Lighting.lightingPreset') === 'custom' },
     });
 
-    // Apply lighting preset values
+    // Apply lighting preset values - Refactored for cleaner logic
     const lightingValues = useMemo(() => {
-        switch (lightingPreset) {
-            case 'studio': return { key: 1.5, fill: 0.5, rim: 0.8, ambient: 0.5 };
-            case 'outdoor': return { key: 2.0, fill: 0.8, rim: 0.3, ambient: 0.7 };
-            case 'dramatic': return { key: 3.0, fill: 0.2, rim: 1.5, ambient: 0.2 };
-            case 'soft': return { key: 0.8, fill: 0.6, rim: 0.4, ambient: 0.8 };
-            case 'custom': return { key: keyIntensity, fill: fillIntensity, rim: rimIntensity, ambient: ambientIntensity };
-            default: return { key: 1.5, fill: 0.5, rim: 0.8, ambient: 0.5 };
-        }
+        const presets = {
+            'studio': { key: 1.5, fill: 0.5, rim: 0.8, ambient: 0.5, env: 'studio' },
+            'outdoor': { key: 2.0, fill: 0.8, rim: 0.3, ambient: 0.7, env: 'forest' },
+            'dramatic': { key: 3.0, fill: 0.2, rim: 1.5, ambient: 0.2, env: 'city' },
+            'soft': { key: 0.5, fill: 0.4, rim: 0.2, ambient: 0.9, env: 'sunset' },
+            'custom': { key: keyIntensity, fill: fillIntensity, rim: rimIntensity, ambient: ambientIntensity, env: 'studio' }
+        };
+        return presets[lightingPreset as keyof typeof presets] || presets['studio'];
     }, [lightingPreset, keyIntensity, fillIntensity, rimIntensity, ambientIntensity]);
 
     const handleExport = () => {
@@ -286,13 +332,13 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
     }, [material, nx, ny, nz, ncmRatio, customAtoms, cifAtoms, onSpaceGroupUpdate]);
 
     const materialProps = useMemo(() => {
-        const base = { roughness, metalness, clearcoat, clearcoatRoughness: 0.1, transmission, ior, thickness, emissiveIntensity, opacity: 1, transparent: false };
+        const base = { roughness, metalness, clearcoat, clearcoatRoughness: 0.2, transmission, ior, thickness, emissiveIntensity, opacity: 1, transparent: false };
         switch (preset) {
-            case 'Ceramic': return { ...base, roughness: 0.1, metalness: 0.1, clearcoat: 1.0 };
-            case 'Metallic': return { ...base, roughness: 0.3, metalness: 1.0, clearcoat: 0.0 };
-            case 'Matte': return { ...base, roughness: 0.9, metalness: 0.0, clearcoat: 0.0 };
-            case 'Glass': return { ...base, roughness: 0.05, metalness: 0.0, transmission: 0.95, ior: 1.5, thickness: 1.0, transparent: true, opacity: 0.3 };
-            case 'Plastic': return { ...base, roughness: 0.1, metalness: 0.0, clearcoat: 0.5 };
+            case 'Ceramic': return { ...base, roughness: 0.3, metalness: 0.1, clearcoat: 0.8 }; // Increased roughness, reduced clearcoat
+            case 'Metallic': return { ...base, roughness: 0.4, metalness: 0.8, clearcoat: 0.1 }; // Increased roughness
+            case 'Matte': return { ...base, roughness: 0.8, metalness: 0.0, clearcoat: 0.0 };
+            case 'Glass': return { ...base, roughness: 0.1, metalness: 0.0, transmission: 0.95, ior: 1.5, thickness: 1.0, transparent: true, opacity: 0.3 };
+            case 'Plastic': return { ...base, roughness: 0.2, metalness: 0.0, clearcoat: 0.3 };
             case 'Emissive': return { ...base, roughness: 0.1, metalness: 0.0, emissive: '#ffffff', emissiveIntensity: 2.0 };
             default: return base;
         }
@@ -300,12 +346,22 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
 
     const planes = useMemo(() => {
         const maxDist = 50;
-        return [
-            clipX < 100 ? new THREE.Plane(new THREE.Vector3(-1, 0, 0), (clipX / 100) * maxDist) : null,
-            clipY < 100 ? new THREE.Plane(new THREE.Vector3(0, -1, 0), (clipY / 100) * maxDist) : null,
-            clipZ < 100 ? new THREE.Plane(new THREE.Vector3(0, 0, -1), (clipZ / 100) * maxDist) : null,
-        ].filter(Boolean) as THREE.Plane[];
-    }, [clipX, clipY, clipZ]);
+        const p = [];
+
+        // X Axis
+        if (clipXMin > 0) p.push(new THREE.Plane(new THREE.Vector3(1, 0, 0), -(clipXMin / 100) * maxDist));
+        if (clipXMax < 100) p.push(new THREE.Plane(new THREE.Vector3(-1, 0, 0), (clipXMax / 100) * maxDist));
+
+        // Y Axis
+        if (clipYMin > 0) p.push(new THREE.Plane(new THREE.Vector3(0, 1, 0), -(clipYMin / 100) * maxDist));
+        if (clipYMax < 100) p.push(new THREE.Plane(new THREE.Vector3(0, -1, 0), (clipYMax / 100) * maxDist));
+
+        // Z Axis
+        if (clipZMin > 0) p.push(new THREE.Plane(new THREE.Vector3(0, 0, 1), -(clipZMin / 100) * maxDist));
+        if (clipZMax < 100) p.push(new THREE.Plane(new THREE.Vector3(0, 0, -1), (clipZMax / 100) * maxDist));
+
+        return p;
+    }, [clipXMin, clipXMax, clipYMin, clipYMax, clipZMin, clipZMax]);
 
     // Apply lighting to Three scene via refs
     useEffect(() => {
@@ -342,7 +398,11 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
                 rimIntensity: lightingValues.rim,
                 ambientIntensity: lightingValues.ambient
             }}>
-                <Center>
+                <Environment preset={lightingValues.env as any} blur={0.6} />
+                <Center key={material} onCentered={() => {
+                    // Force re-render after centering to fix disappearing atoms
+                    // This is a common fix for Center component issues
+                }}>
                     <group ref={groupRef}>
                         <Atoms
                             atoms={structureData.atoms}

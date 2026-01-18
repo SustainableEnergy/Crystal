@@ -52,9 +52,10 @@ export const Atoms = ({
 
         return (
           <Instances
-            key={element}
+            key={`${element}-${elementAtoms.length}`}
             range={elementAtoms.length}
             limit={20000}
+            frustumCulled={false}
           >
             <sphereGeometry args={[finalRadius, 32, 32]} />
             <meshPhysicalMaterial

@@ -180,10 +180,12 @@ function App() {
         width: isMobile ? '100%' : 'auto',
         zIndex: isMobile ? 998 : 999,
         transition: 'top 0.3s ease',
-        maxHeight: isMobile ? 'calc(100vh - 56px)' : 'auto',
-        overflowY: isMobile ? 'auto' : 'visible'
+        maxHeight: isMobile ? 'calc(100vh - 56px)' : '95vh',
+        overflowY: 'auto'
       }}>
         <Leva
+          flat
+          titleBar={false}
           theme={{
             colors: {
               highlight1: '#667eea',
@@ -204,8 +206,8 @@ function App() {
               sans: '"Pretendard GOV", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif'
             },
             fontSizes: {
-              root: '12px',
-              toolTip: '11px'
+              root: '13px',
+              toolTip: '12px'
             },
             sizes: {
               rootWidth: isMobile ? '100%' : '400px',
@@ -224,14 +226,10 @@ function App() {
               lg: '10px'
             }
           }}
-          titleBar={{
-            title: 'Controls',
-            drag: !isMobile,
-            filter: true
-          }}
+
           collapsed={false}
           oneLineLabels={false}
-          flat={false}
+
           hideCopyButton={false}
           hidden={isMobile && !controlsOpen}
         />
