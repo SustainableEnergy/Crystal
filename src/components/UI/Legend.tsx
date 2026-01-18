@@ -43,13 +43,16 @@ export const Legend = ({ material }: LegendProps) => {
                         height: '12px',
                         borderRadius: '50%',
                         backgroundColor: ELEMENT_COLORS[el],
-                        border: '1px solid rgba(0,0,0,0.1)'
+                        border: '1px solid rgba(0,0,0,0.2)',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
                     }} />
                     <span style={{
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        color: '#333',
-                        fontFamily: "'Pretendard GOV', sans-serif"
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        color: '#fff', // White base for difference mode
+                        mixBlendMode: 'difference', // Autodetect contrast (White on Black / Black on White)
+                        fontFamily: "'Pretendard GOV', sans-serif",
+                        letterSpacing: '0.02em'
                     }}>
                         {el}
                     </span>
