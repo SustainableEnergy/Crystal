@@ -13,7 +13,6 @@ import type { Atom } from '../../core/types';
 import { v4 as uuidv4 } from 'uuid';
 import { ErrorBoundary } from '../UI/ErrorBoundary';
 import { ELEMENT_COLORS } from './Materials';
-import { UnitCellBox } from './UnitCellBox';
 
 // --- SUB-COMPONENT: DYNAMIC ELEMENT CONTROLS ---
 const ElementController = ({
