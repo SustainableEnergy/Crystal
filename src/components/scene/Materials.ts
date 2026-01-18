@@ -12,13 +12,14 @@
 // Visual scale factor applied via radiusScale parameter (default 1.0)
 
 export const ELEMENT_COLORS: { [key: string]: string } = {
-    Li: '#7A52CC', // Vibrant Purple
-    O: '#FF4D4D',  // Bright Red
-    Co: '#3366FF', // Royal Blue
-    Ni: '#00CC66', // Emerald Green
-    Mn: '#CC33CC', // Magenta
-    Fe: '#FF9933', // Golden Orange
-    P: '#FF8000',  // Darker Orange
+    Li: '#0277BD', // Premium Azure
+    Ni: '#00897B', // Deep Mint (Teal) - Less neon, more distinct
+    Co: '#EF6C00', // Burnt Orbit (Dark Orange) - Richer tone
+    Mn: '#7E57C2', // Royal Violet - Balanced purple
+    Al: '#546E7A', // Blue Grey (Deep metal) - Distinct from Li
+    Fe: '#8D6E63', // Iron Bronze (Earth tone)
+    P: '#6D4C41', // Deep Earth
+    O: '#1A237E', // Midnight Depth (Navy) - Contrast for light bg
 };
 
 // Display radii optimized for visualization (reduced from true ionic radii)

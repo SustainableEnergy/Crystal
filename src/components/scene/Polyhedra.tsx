@@ -84,10 +84,11 @@ export const Polyhedra = ({ atoms, visible, clippingPlanes, elementSettings = {}
                     <meshPhysicalMaterial
                         color={poly.color}
                         transparent
-                        opacity={0.25}
-                        roughness={0.1}
-                        metalness={0.1}
-                        transmission={0.25}
+                        opacity={0.35}
+                        roughness={0.7}
+                        metalness={0.0}
+                        clearcoat={0.0}
+                        transmission={0.0}
                         side={THREE.DoubleSide}
                         clippingPlanes={clippingPlanes}
                         clipShadows
