@@ -1,36 +1,4 @@
-const SPACE_GROUP_DATA: {
-    [key: string]: {
-        spaceGroup: string,
-        number: number,
-        system: string,
-        description: string
-    }
-} = {
-    'NCM': {
-        spaceGroup: 'R-3m',
-        number: 166,
-        system: 'Trigonal/Rhombohedral',
-        description: 'Mixed transition metal layered oxide'
-    },
-    'LFP': {
-        spaceGroup: 'Pnma',
-        number: 62,
-        system: 'Orthorhombic',
-        description: 'Olivine structure with 1D Li channels'
-    },
-    'LEGO': {
-        spaceGroup: 'P1',
-        number: 1,
-        system: 'Triclinic',
-        description: 'Custom structure - no symmetry'
-    },
-    'CIF Option': {
-        spaceGroup: 'Unknown',
-        number: 0,
-        system: 'From CIF data',
-        description: 'Imported from CIF file'
-    }
-};
+import { useMemo } from 'react';
 
 interface SpaceGroupPanelProps {
     material: string;
@@ -42,27 +10,74 @@ interface SpaceGroupPanelProps {
         beta: number;
         gamma: number;
     };
+    isMobile?: boolean;
+    isOpen?: boolean;
 }
 
-export const SpaceGroupPanel = ({ material, unitCell }: SpaceGroupPanelProps) => {
-    const info = SPACE_GROUP_DATA[material] || SPACE_GROUP_DATA['LEGO'];
+interface SpaceGroupInfo {
+    spaceGroup: string;
+    number: number;
+    system: string;
+    description: string;
+}
+
+const spaceGroupData: { [key: string]: SpaceGroupInfo } = {
+    'NCM': {
+        spaceGroup: 'R-3m',
+        number: 166,
+        system: 'Trigonal (Rhombohedral)',
+        description: 'Layered structure with rhombohedral symmetry'
+    },
+    'LFP': {
+        spaceGroup: 'Pnma',
+        number: 62,
+        system: 'Orthorhombic',
+        description: 'Olivine structure with orthorhombic symmetry'
+    }
+};
+
+export const SpaceGroupPanel = ({ material, unitCell, isMobile = false, isOpen = true }: SpaceGroupPanelProps) => {
+    const info = useMemo(() => {
+        return spaceGroupData[material] || spaceGroupData['NCM'];
+    }, [material]);
+
+    // Don't render if mobile and closed
+    if (isMobile && !isOpen) return null;
 
     return (
         <div style={{
-            position: 'absolute',
-            top: '120px',
-            left: '30px',
-            background: 'rgba(20, 20, 20, 0.92)',
-            padding: '16px 20px',
-            borderRadius: '12px',
-            border: '1px solid rgba(102, 126, 234, 0.3)',
-            backdropFilter: 'blur(10px)',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
-            minWidth: '280px',
-            maxWidth: '320px',
-            zIndex: 100,
-            pointerEvents: 'none'
+            position: isMobile ? 'fixed' : 'absolute',
+            top: isMobile ? '56px' : '120px',
+            left: isMobile ? 0 : '30px',
+            right: isMobile ? 0 : 'auto',
+            width: isMobile ? '100%' : 'auto',
+            maxWidth: isMobile ? '100%' : '320px',
+            background: 'linear-gradient(135deg, rgba(26, 26, 26, 0.95) 0%, rgba(38, 38, 38, 0.95) 100%)',
+            backdropFilter: 'blur(12px)',
+            borderRadius: isMobile ? '0 0 16px 16px' : '16px',
+            padding: '20px',
+            color: 'white',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+            border: '1px solid rgba(102, 126, 234, 0.2)',
+            zIndex: isMobile ? 999 : 10,
+            pointerEvents: 'auto',
+            animation: isMobile && isOpen ? 'slideDown 0.3s ease-out' : 'none',
+            transition: 'all 0.3s ease'
         }}>
+            <style>{`
+                @keyframes slideDown {
+                    from {
+                        opacity: 0;
+                        transform: translateY(-20px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+            `}</style>
+
             <div style={{
                 fontSize: '13px',
                 color: '#667eea',
@@ -74,7 +89,7 @@ export const SpaceGroupPanel = ({ material, unitCell }: SpaceGroupPanelProps) =>
                 Space Group
             </div>
             <div style={{
-                fontSize: '32px',
+                fontSize: isMobile ? '28px' : '32px',
                 color: '#FFF8F0',
                 fontWeight: '700',
                 marginBottom: '12px',
@@ -83,7 +98,7 @@ export const SpaceGroupPanel = ({ material, unitCell }: SpaceGroupPanelProps) =>
             }}>
                 {info.spaceGroup}
                 <span style={{
-                    fontSize: '20px',
+                    fontSize: isMobile ? '18px' : '20px',
                     color: '#999',
                     fontWeight: '400',
                     marginLeft: '12px'

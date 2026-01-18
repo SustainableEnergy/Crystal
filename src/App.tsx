@@ -6,6 +6,8 @@ import { Leva } from 'leva'
 import { StructureScene, ExportButton } from './components/scene/StructureScene'
 import { ErrorBoundary } from './components/UI/ErrorBoundary'
 import { SpaceGroupPanel } from './components/UI/SpaceGroupPanel'
+import { MobileHeader } from './components/UI/MobileHeader'
+import { useIsMobile } from './hooks/useMediaQuery'
 import * as THREE from 'three'
 
 // Dynamic Lights Component that responds to lighting values
@@ -17,7 +19,6 @@ function DynamicLights() {
   const { scene } = useThree();
 
   useFrame(() => {
-    // Find the structure group and get lighting values from userData
     const structureGroup = scene.children.find((child: any) => child.userData?.keyIntensity !== undefined);
 
     if (structureGroup && structureGroup.userData) {
@@ -31,11 +32,7 @@ function DynamicLights() {
   return (
     <>
       <ambientLight ref={ambientLightRef} intensity={0.5} color="#f0f0ff" />
-      <hemisphereLight
-        args={['#87ceeb', '#1a1a1a', 0.4]}
-        position={[0, 50, 0]}
-      />
-
+      <hemisphereLight args={['#87ceeb', '#1a1a1a', 0.4]} position={[0, 50, 0]} />
       <directionalLight
         ref={keyLightRef}
         position={[5, 8, 5]}
@@ -50,10 +47,8 @@ function DynamicLights() {
         shadow-camera-bottom={-10}
         shadow-bias={-0.0001}
       />
-
       <directionalLight ref={fillLightRef} position={[-5, 3, -3]} intensity={0.5} color="#B0C4DE" />
       <directionalLight ref={rimLightRef} position={[0, -3, -5]} intensity={0.8} color="#FFE4E1" />
-
       <pointLight position={[10, 10, 10]} intensity={0.2} decay={2} />
       <pointLight position={[-10, 5, -5]} intensity={0.15} decay={2} />
     </>
@@ -68,12 +63,16 @@ function App() {
     unitCell: { a: 2.816, b: 2.816, c: 14.052, alpha: 90, beta: 90, gamma: 120 }
   });
 
+  // Mobile responsive state
+  const isMobile = useIsMobile();
+  const [spaceGroupOpen, setSpaceGroupOpen] = useState(false);
+  const [controlsOpen, setControlsOpen] = useState(false);
+
   const handleResetCamera = () => {
     const event = new CustomEvent('reset-camera');
     window.dispatchEvent(event);
   };
 
-  // Listen for space group updates
   useEffect(() => {
     const handleSpaceGroupUpdate = (e: any) => {
       setSpaceGroupInfo(e.detail);
@@ -84,59 +83,82 @@ function App() {
 
   return (
     <ErrorBoundary name="App Root">
-      <Leva
-        theme={{
-          colors: {
-            highlight1: '#667eea',
-            highlight2: '#764ba2',
-            elevation1: '#1a1a1a',
-            elevation2: '#242424',
-            elevation3: '#2e2e2e',
-            accent1: '#667eea',
-            accent2: '#764ba2',
-            accent3: '#8b5cf6',
-            folderWidgetColor: '$accent2',
-            folderTextColor: '$highlight1',
-            highlight3: '#FFF8F0',
-            vivid1: '#ffaa00',
-          },
-          fonts: {
-            mono: '"SF Mono", "Cascadia Code", "Fira Code", ui-monospace, monospace',
-            sans: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif'
-          },
-          fontSizes: {
-            root: '12px',
-            toolTip: '11px'
-          },
-          sizes: {
-            rootWidth: '400px',
-            controlWidth: '160px',
-            scrubberWidth: '14px',
-            scrubberHeight: '14px',
-            rowHeight: '28px',
-            folderTitleHeight: '36px',
-            checkboxSize: '20px',
-            monitorHeight: '64px',
-            titleBarHeight: '44px'
-          },
-          radii: {
-            xs: '4px',
-            sm: '6px',
-            lg: '10px'
-          }
-        }}
-        titleBar={{
-          title: '?�️ Controls',
-          drag: true,
-          filter: true
-        }}
-        collapsed={false}
-        oneLineLabels={false}
-        flat={false}
-        hideCopyButton={false}
-      />
+      {/* Mobile Header */}
+      {isMobile && (
+        <MobileHeader
+          onToggleSpaceGroup={() => setSpaceGroupOpen(!spaceGroupOpen)}
+          onToggleControls={() => setControlsOpen(!controlsOpen)}
+          spaceGroupOpen={spaceGroupOpen}
+          controlsOpen={controlsOpen}
+        />
+      )}
 
-      {/* Fix color preview CSS - Don't override color input backgrounds */}
+      {/* Leva Controls - Responsive positioning */}
+      <div style={{
+        position: 'fixed',
+        top: isMobile ? (controlsOpen ? '56px' : '-1000px') : '0',
+        right: isMobile ? '0' : '0',
+        left: isMobile ? '0' : 'auto',
+        width: isMobile ? '100%' : 'auto',
+        zIndex: isMobile ? 998 : 'auto',
+        transition: 'top 0.3s ease',
+        maxHeight: isMobile ? 'calc(100vh - 56px)' : 'auto',
+        overflowY: isMobile ? 'auto' : 'visible'
+      }}>
+        <Leva
+          theme={{
+            colors: {
+              highlight1: '#667eea',
+              highlight2: '#764ba2',
+              elevation1: '#1a1a1a',
+              elevation2: '#242424',
+              elevation3: '#2e2e2e',
+              accent1: '#667eea',
+              accent2: '#764ba2',
+              accent3: '#8b5cf6',
+              folderWidgetColor: '$accent2',
+              folderTextColor: '$highlight1',
+              highlight3: '#FFF8F0',
+              vivid1: '#ffaa00',
+            },
+            fonts: {
+              mono: '"SF Mono", "Cascadia Code", "Fira Code", ui-monospace, monospace',
+              sans: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif'
+            },
+            fontSizes: {
+              root: '12px',
+              toolTip: '11px'
+            },
+            sizes: {
+              rootWidth: isMobile ? '100%' : '400px',
+              controlWidth: '160px',
+              scrubberWidth: '14px',
+              scrubberHeight: '14px',
+              rowHeight: '28px',
+              folderTitleHeight: '36px',
+              checkboxSize: '20px',
+              monitorHeight: '64px',
+              titleBarHeight: '44px'
+            },
+            radii: {
+              xs: '4px',
+              sm: '6px',
+              lg: '10px'
+            }
+          }}
+          titleBar={{
+            title: '⚙️ Controls',
+            drag: !isMobile,
+            filter: true
+          }}
+          collapsed={false}
+          oneLineLabels={false}
+          flat={false}
+          hideCopyButton={false}
+          hidden={isMobile && !controlsOpen}
+        />
+      </div>
+
       <style>{`
         .leva__label,
         .leva__value,
@@ -154,10 +176,16 @@ function App() {
           color: #FFF8F0 !important;
         }
 
-        /* DON'T override color picker backgrounds */
         .leva__color-input,
         input[type="color"] {
           /* Let Leva handle color pickers naturally */
+        }
+
+        @media (max-width: 767px) {
+          .leva-c-ksNwjm {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
         }
       `}</style>
 
@@ -216,59 +244,81 @@ function App() {
         </Canvas>
       </div>
 
+      {/* Space Group Panel - Responsive */}
       <SpaceGroupPanel
         material={spaceGroupInfo.material}
         unitCell={spaceGroupInfo.unitCell}
+        isMobile={isMobile}
+        isOpen={isMobile ? spaceGroupOpen : true}
       />
 
-      <div style={{ position: 'absolute', top: 30, left: 30, pointerEvents: 'none', color: '#888', zIndex: 10 }}>
-        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 300, color: 'white', letterSpacing: '-0.02em' }}>Cathode Visualizer</h1>
-        <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.6 }}>High-Fidelity Crystal Engine</p>
-      </div>
+      {/* Desktop Title */}
+      {!isMobile && (
+        <>
+          <div style={{ position: 'absolute', top: 30, left: 30, pointerEvents: 'none', color: '#888', zIndex: 10 }}>
+            <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 300, color: 'white', letterSpacing: '-0.02em' }}>Cathode Visualizer</h1>
+            <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.6 }}>High-Fidelity Crystal Engine</p>
+          </div>
 
-      <div style={{ position: 'absolute', bottom: 30, right: 30, pointerEvents: 'none', color: '#666', zIndex: 10, textAlign: 'right' }}>
-        <p style={{ margin: 0, fontSize: '0.8rem' }}>Universal 3D Asset Generator</p>
-      </div>
+          <div style={{ position: 'absolute', bottom: 30, right: 30, pointerEvents: 'none', color: '#666', zIndex: 10, textAlign: 'right' }}>
+            <p style={{ margin: 0, fontSize: '0.8rem' }}>Universal 3D Asset Generator</p>
+          </div>
+        </>
+      )}
 
+      {/* Reset View Button - Responsive */}
       <button
         onClick={handleResetCamera}
         style={{
-          position: 'absolute',
-          bottom: '30px',
-          left: '220px',
-          padding: '12px 20px',
+          position: 'fixed',
+          bottom: isMobile ? '16px' : '30px',
+          left: isMobile ? '16px' : '220px',
+          padding: isMobile ? '10px 16px' : '12px 20px',
           background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
           color: 'white',
           border: 'none',
           borderRadius: '8px',
           cursor: 'pointer',
-          fontSize: '14px',
+          fontSize: isMobile ? '13px' : '14px',
           fontWeight: '600',
           boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)',
           transition: 'all 0.3s ease',
           zIndex: 1000,
-          pointerEvents: 'auto'
+          pointerEvents: 'auto',
+          minHeight: '44px'
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'translateY(-2px)';
-          e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.6)';
+          if (!isMobile) {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.6)';
+          }
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'translateY(0)';
-          e.currentTarget.style.boxShadow = '0 4px 15px rgba(59, 130, 246, 0.4)';
+          if (!isMobile) {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 4px 15px rgba(59, 130, 246, 0.4)';
+          }
         }}
       >
-        ?��Reset View
+        Reset View
       </button>
 
-      {showExport && <ExportButton onClick={() => {
-        const event = new CustomEvent('export-model');
-        window.dispatchEvent(event);
-      }} />}
+      {/* Export Button - Responsive */}
+      {showExport && (
+        <div style={{
+          position: 'fixed',
+          bottom: isMobile ? '16px' : '30px',
+          right: isMobile ? '16px' : '30px',
+          zIndex: 1000
+        }}>
+          <ExportButton onClick={() => {
+            const event = new CustomEvent('export-model');
+            window.dispatchEvent(event);
+          }} />
+        </div>
+      )}
     </ErrorBoundary>
   )
 }
 
 export default App
-
-
