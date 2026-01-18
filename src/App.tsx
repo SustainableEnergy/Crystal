@@ -1,4 +1,4 @@
-import { Suspense, useRef, useState, useEffect } from 'react'
+ï»¿import { Suspense, useRef, useState, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, ContactShadows } from '@react-three/drei'
 import { EffectComposer, Bloom, Vignette, SSAO } from '@react-three/postprocessing'
@@ -126,7 +126,7 @@ function App() {
           }
         }}
         titleBar={{
-          title: '?™ï¸ Controls',
+          title: '?ï¿½ï¸ Controls',
           drag: true,
           filter: true
         }}
@@ -258,7 +258,7 @@ function App() {
           e.currentTarget.style.boxShadow = '0 4px 15px rgba(59, 130, 246, 0.4)';
         }}
       >
-        ?Ž¯ Reset View
+        ?ï¿½ï¿½Reset View
       </button>
 
       {showExport && <ExportButton onClick={() => {
@@ -270,4 +270,5 @@ function App() {
 }
 
 export default App
+
 

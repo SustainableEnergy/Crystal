@@ -155,9 +155,9 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
             showUnitCell: { value: false, label: 'Unit Cell Box' },
         }),
         'Clipping': folder({
-            clipX: { value: 35, min: 0, max: 100, label: 'Clip X' },
-            clipY: { value: 35, min: 0, max: 100, label: 'Clip Y' },
-            clipZ: { value: 25, min: 0, max: 100, label: 'Clip Z' },
+            clipX: { value: 100, min: 0, max: 100, label: 'Clip X' },
+            clipY: { value: 100, min: 0, max: 100, label: 'Clip Y' },
+            clipZ: { value: 100, min: 0, max: 100, label: 'Clip Z' },
         })
     });
 
