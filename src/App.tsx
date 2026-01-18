@@ -163,7 +163,7 @@ function App() {
 
       <div style={{ width: '100vw', height: '100vh', background: '#050505' }}>
         <Canvas
-          camera={{ position: [0, 0, 35], fov: 50 }}
+          camera={{ position: [0, 0, 60], fov: 60 }}
           dpr={[1, 2]}
           gl={{
             antialias: true,
@@ -218,7 +218,7 @@ function App() {
 
       <SpaceGroupPanel
         material={spaceGroupInfo.material}
-      unitCell={spaceGroupInfo.unitCell}
+        unitCell={spaceGroupInfo.unitCell}
       />
 
       <div style={{ position: 'absolute', top: 30, left: 30, pointerEvents: 'none', color: '#888', zIndex: 10 }}>
