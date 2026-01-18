@@ -211,15 +211,14 @@ function App() {
               radius={0.3}
               intensity={20}
               luminanceInfluence={0.6}
-              color="#000000"
             />
           </EffectComposer>
         </Canvas>
       </div>
 
       <SpaceGroupPanel
-        material={spaceGroupInfo.material}
-        unitCell={spaceGroupInfo.unitCell}
+        material={space GroupInfo.material}
+      unitCell={spaceGroupInfo.unitCell}
       />
 
       <div style={{ position: 'absolute', top: 30, left: 30, pointerEvents: 'none', color: '#888', zIndex: 10 }}>
