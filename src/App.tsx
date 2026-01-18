@@ -74,7 +74,6 @@ function App() {
   // New states
   const [currentStructure, setCurrentStructure] = useState('NCM');
   const [currentCameraPreset, setCurrentCameraPreset] = useState('Isometric');
-  const [cifData, setCifData] = useState<string | undefined>();
 
   const handleResetCamera = () => {
     const event = new CustomEvent('reset-camera');
@@ -83,9 +82,6 @@ function App() {
 
   const handleStructureChange = (structure: string, data?: string) => {
     setCurrentStructure(structure);
-    if (data) {
-      setCifData(data);
-    }
     const event = new CustomEvent('structure-change', { detail: { structure, cifData: data } });
     window.dispatchEvent(event);
     setStructureSelectorOpen(false);
