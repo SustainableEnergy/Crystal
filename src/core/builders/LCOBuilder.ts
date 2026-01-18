@@ -53,9 +53,11 @@ export const generateLCO = (nx = 3, ny = 3, nz = 1): StructureData => {
                     addAtom(ix + sx, iy + sy, iz + sz + 0.5, 'Co');
 
                     // O at 6c: (0, 0, ±z) + rhombohedral shifts
-                    // Use +z and -z (which wraps to 1-z in next cell)
+                    // Use +z and -z, but normalize -z to positive via modulo
                     addAtom(ix + sx, iy + sy, iz + sz + z_o, 'O');
-                    addAtom(ix + sx, iy + sy, iz + sz - z_o, 'O');
+                    // For -z_o, add 1.0 to keep it positive (periodic boundary condition)
+                    const normalized_neg_z = iz + sz + (1.0 - z_o);
+                    addAtom(ix + sx, iy + sy, normalized_neg_z, 'O');
                 }
             }
         }

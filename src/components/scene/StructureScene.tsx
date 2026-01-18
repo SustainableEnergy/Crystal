@@ -13,6 +13,7 @@ import type { Atom } from '../../core/types';
 import { v4 as uuidv4 } from 'uuid';
 import { ErrorBoundary } from '../UI/ErrorBoundary';
 import { ELEMENT_COLORS } from './Materials';
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 
 // --- SUB-COMPONENT: DYNAMIC ELEMENT CONTROLS ---
 const ElementController = ({
@@ -179,9 +180,29 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
         return () => window.removeEventListener('structure-change', handleStructureChange);
     }, []);
 
-    const { autoRotate, autoRotateSpeed } = useControls('🎥 Camera', {
-        autoRotate: { value: true },
-        autoRotateSpeed: { value: 1.5, min: 0.1, max: 10, render: (get) => get('🎥 Camera.autoRotate') },
+    const [autoRotate, setAutoRotate] = useState(true);
+    const [autoRotateSpeed, setAutoRotateSpeed] = useState(1.5);
+
+    // Camera controls with manual state for keyboard shortcuts
+    useControls('Camera', {
+        'Auto Rotate': {
+            value: autoRotate,
+            onChange: (v) => setAutoRotate(v)
+        },
+        'Rotate Speed': {
+            value: autoRotateSpeed,
+            min: 0.1,
+            max: 10,
+            onChange: (v) => setAutoRotateSpeed(v),
+            render: (get) => get('Camera.Auto Rotate')
+        },
+    });
+
+    // Keyboard shortcuts - Space to toggle auto-rotate
+    useKeyboardShortcuts({
+        'Space': () => {
+            setAutoRotate(prev => !prev);
+        }
     });
 
     // Lighting Controls with Presets
@@ -348,7 +369,7 @@ export const ExportButton = ({ onClick }: { onClick: () => void }) => (
     <button
         onClick={onClick}
         style={{
-            position: 'absolute',
+            position: 'fixed',
             bottom: '30px',
             left: '30px',
             padding: '12px 24px',
