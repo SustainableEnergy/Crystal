@@ -373,7 +373,6 @@ export const ExportButton = ({ onClick }: { onClick: () => void }) => (
             e.currentTarget.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4)';
         }}
     >
-        📦 Export 3D Model
+        Export 3D Model
     </button>
 );
-
