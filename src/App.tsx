@@ -132,7 +132,7 @@ function App() {
           position: 'fixed',
           top: '20px',
           left: '20px',
-          right: '20px',
+          right: '420px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -177,7 +177,7 @@ function App() {
         right: '0',
         left: isMobile ? '0' : 'auto',
         width: isMobile ? '100%' : 'auto',
-        zIndex: isMobile ? 998 : 1000,
+        zIndex: isMobile ? 998 : 999,
         transition: 'top 0.3s ease',
         maxHeight: isMobile ? 'calc(100vh - 56px)' : 'auto',
         overflowY: isMobile ? 'auto' : 'visible'
@@ -388,7 +388,7 @@ function App() {
           </button>
 
           {showExport && (
-            <div style={{ position: 'fixed', bottom: '30px', left: '30px', zIndex: 1000 }}>
+            <div style={{ position: 'fixed', bottom: '30px', left: '360px', zIndex: 1000 }}>
               <ExportButton onClick={() => {
                 const event = new CustomEvent('export-model');
                 window.dispatchEvent(event);

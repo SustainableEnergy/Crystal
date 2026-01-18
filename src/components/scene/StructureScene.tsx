@@ -85,15 +85,15 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
     const [cifAtoms, setCifAtoms] = useState<Atom[]>([]);
     const [elementSettings, setElementSettings] = useState<any>({});
 
-    // Hierarchical Controls - NCM as default, LCO removed
-    const { material, nx, ny, nz, ncmRatio } = useControls('📦 Structure', {
-        material: { options: ['NCM', 'LFP', 'LEGO', 'CIF Option'], value: 'NCM', label: 'Type' },
-        'Unit Cell': folder({
-            nx: { value: 4, min: 1, max: 10, step: 1, label: 'X Repeat', render: (get) => ['NCM', 'LFP'].includes(get('📦 Structure.material')) },
-            ny: { value: 4, min: 1, max: 10, step: 1, label: 'Y Repeat', render: (get) => ['NCM', 'LFP'].includes(get('📦 Structure.material')) },
-            nz: { value: 4, min: 1, max: 10, step: 1, label: 'Z Repeat', render: (get) => ['NCM', 'LFP'].includes(get('📦 Structure.material')) },
-        }),
-        ncmRatio: { options: ['811', '622', '111'], value: '811', label: 'NCM Ratio', render: (get) => get('📦 Structure.material') === 'NCM' }
+    // Structure state from external events
+    const [material, setMaterial] = useState('NCM-811');
+    const [ncmRatio, setNcmRatio] = useState('811');
+
+    // Hierarchical Controls - Material removed from Leva
+    const { nx, ny, nz } = useControls('Unit Cell', {
+        nx: { value: 4, min: 1, max: 10, step: 1, label: 'X Repeat', render: () => ['NCM', 'LFP'].includes(material.split('-')[0]) },
+        ny: { value: 4, min: 1, max: 10, step: 1, label: 'Y Repeat', render: () => ['NCM', 'LFP'].includes(material.split('-')[0]) },
+        nz: { value: 4, min: 1, max: 10, step: 1, label: 'Z Repeat', render: () => ['NCM', 'LFP'].includes(material.split('-')[0]) },
     });
 
     useControls('🧱 LEGO Builder', {
@@ -161,6 +161,24 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
         })
     });
 
+    // Listen for structure change events
+    useEffect(() => {
+        const handleStructureChange = (e: any) => {
+            const { structure } = e.detail;
+            console.log('Structure change event:', structure);
+            setMaterial(structure);
+
+            // Extract NCM ratio if present
+            if (structure.startsWith('NCM-')) {
+                const ratio = structure.split('-')[1];
+                setNcmRatio(ratio);
+            }
+        };
+
+        window.addEventListener('structure-change', handleStructureChange);
+        return () => window.removeEventListener('structure-change', handleStructureChange);
+    }, []);
+
     const { autoRotate, autoRotateSpeed } = useControls('🎥 Camera', {
         autoRotate: { value: true },
         autoRotateSpeed: { value: 1.5, min: 0.1, max: 10, render: (get) => get('🎥 Camera.autoRotate') },
@@ -211,11 +229,13 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
     const structureData = useMemo(() => {
         try {
             let data;
-            switch (material) {
+            const baseMaterial = material.split('-')[0]; // Extract base material (NCM from NCM-811)
+
+            switch (baseMaterial) {
                 case 'NCM': data = generateNCM(nx, ny, nz, ncmRatio as any); break;
                 case 'LFP': data = generateLFP(nx, ny, nz); break;
                 case 'LEGO': data = { atoms: customAtoms, unitCell: { a: 10, b: 10, c: 10, alpha: 90, beta: 90, gamma: 90 } }; break;
-                case 'CIF Option': data = { atoms: cifAtoms, unitCell: { a: 10, b: 10, c: 10, alpha: 90, beta: 90, gamma: 90 } }; break;
+                case 'CIF': data = { atoms: cifAtoms, unitCell: { a: 10, b: 10, c: 10, alpha: 90, beta: 90, gamma: 90 } }; break;
                 default: data = generateNCM(nx, ny, nz, '811');
             }
 
