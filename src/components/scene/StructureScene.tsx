@@ -161,10 +161,9 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
         })
     });
 
-    const { autoRotate, autoRotateSpeed, autoRotateAxis } = useControls('🎥 Camera', {
+    const { autoRotate, autoRotateSpeed } = useControls('🎥 Camera', {
         autoRotate: { value: false },
         autoRotateSpeed: { value: 1.0, min: 0.1, max: 10, render: (get) => get('🎥 Camera.autoRotate') },
-        autoRotateAxis: { value: 'Y', options: ['X', 'Y', 'Z'], label: 'Rotation Axis', render: (get) => get('🎥 Camera.autoRotate') }
     });
 
     // Lighting Controls with Presets
