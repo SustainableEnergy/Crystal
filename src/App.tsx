@@ -167,6 +167,7 @@ function App() {
           currentStructure={currentStructure}
           onStructureChange={handleStructureChange}
           isMobile={true}
+          onClose={() => setStructureSelectorOpen(false)}
         />
       )}
 
@@ -199,8 +200,8 @@ function App() {
               vivid1: '#ffaa00',
             },
             fonts: {
-              mono: '"SF Mono", "Cascadia Code", "Fira Code", ui-monospace, monospace',
-              sans: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif'
+              mono: '"Pretendard GOV", "Consolas", "SF Mono", "Cascadia Code", ui-monospace, monospace',
+              sans: '"Pretendard GOV", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif'
             },
             fontSizes: {
               root: '12px',

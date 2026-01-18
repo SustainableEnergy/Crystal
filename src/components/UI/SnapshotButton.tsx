@@ -36,7 +36,7 @@ export const SnapshotButton = ({ onCapture, isMobile = false }: SnapshotButtonPr
                 }
             }}
         >
-            {!isMobile && <span>Snapshot</span>}
+            <span>Snapshot</span>
         </button>
     );
 };

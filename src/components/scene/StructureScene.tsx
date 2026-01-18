@@ -90,12 +90,22 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
     const [material, setMaterial] = useState('NCM-811');
     const [ncmRatio, setNcmRatio] = useState('811');
 
+    // Get default values based on material
+    const getDefaultCellSize = () => {
+        const baseMat = material.split('-')[0];
+        if (baseMat === 'LFP') return { nx: 4, ny: 4, nz: 7 };
+        if (baseMat === 'NCM') return { nx: 5, ny: 5, nz: 3 };
+        return { nx: 4, ny: 4, nz: 4 };
+    };
+
+    const defaults = getDefaultCellSize();
+
     // Hierarchical Controls - Material removed from Leva
     const { nx, ny, nz } = useControls('Unit Cell', {
-        nx: { value: 4, min: 1, max: 10, step: 1, label: 'X Repeat', render: () => ['NCM', 'LFP'].includes(material.split('-')[0]) },
-        ny: { value: 4, min: 1, max: 10, step: 1, label: 'Y Repeat', render: () => ['NCM', 'LFP'].includes(material.split('-')[0]) },
-        nz: { value: 4, min: 1, max: 10, step: 1, label: 'Z Repeat', render: () => ['NCM', 'LFP'].includes(material.split('-')[0]) },
-    });
+        nx: { value: defaults.nx, min: 1, max: 10, step: 1, label: 'X Repeat', render: () => ['NCM', 'LFP'].includes(material.split('-')[0]) },
+        ny: { value: defaults.ny, min: 1, max: 10, step: 1, label: 'Y Repeat', render: () => ['NCM', 'LFP'].includes(material.split('-')[0]) },
+        nz: { value: defaults.nz, min: 1, max: 10, step: 1, label: 'Z Repeat', render: () => ['NCM', 'LFP'].includes(material.split('-')[0]) },
+    }, [material]);
 
     useControls('🧱 LEGO Builder', {
         legoElement: { options: ['Li', 'Co', 'Ni', 'Mn', 'Fe', 'P', 'O'], value: 'Li' },

@@ -34,18 +34,19 @@ export const MobileHeader = ({
             <button
                 onClick={onToggleStructureSelector}
                 style={{
-                    background: 'rgba(102, 126, 234, 0.2)',
-                    border: '1px solid rgba(102, 126, 234, 0.3)',
+                    background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.25) 0%, rgba(118, 75, 162, 0.25) 100%)',
+                    border: '2px solid rgba(102, 126, 234, 0.4)',
                     borderRadius: '8px',
-                    padding: '8px 12px',
+                    padding: '10px 16px',
                     color: '#FFF8F0',
-                    fontSize: '13px',
-                    fontWeight: '600',
+                    fontSize: '14px',
+                    fontWeight: '700',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
                     minHeight: '44px',
+                    boxShadow: '0 2px 8px rgba(102, 126, 234, 0.2)',
                     transition: 'all 0.2s ease'
                 }}
             >
@@ -56,41 +57,47 @@ export const MobileHeader = ({
             <button
                 onClick={onToggleSpaceGroup}
                 style={{
-                    background: spaceGroupOpen ? 'rgba(102, 126, 234, 0.2)' : 'transparent',
-                    border: '1px solid rgba(102, 126, 234, 0.3)',
+                    background: spaceGroupOpen
+                        ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.35) 0%, rgba(118, 75, 162, 0.35) 100%)'
+                        : 'rgba(255, 255, 255, 0.05)',
+                    border: spaceGroupOpen ? '2px solid rgba(102, 126, 234, 0.5)' : '2px solid rgba(102, 126, 234, 0.3)',
                     borderRadius: '8px',
-                    padding: '8px',
+                    padding: '10px 12px',
                     color: '#FFF8F0',
-                    fontSize: '11px',
-                    fontWeight: '600',
+                    fontSize: '14px',
+                    fontWeight: '700',
                     cursor: 'pointer',
                     minHeight: '44px',
+                    boxShadow: spaceGroupOpen ? '0 2px 8px rgba(102, 126, 234, 0.3)' : 'none',
                     transition: 'all 0.2s ease'
                 }}
             >
-                <span style={{ fontSize: '14px' }}>{spaceGroupOpen ? '▼' : '▶'}</span> Info
+                Info
             </button>
 
             {/* Right: Controls Toggle */}
             <button
                 onClick={onToggleControls}
                 style={{
-                    background: controlsOpen ? 'rgba(102, 126, 234, 0.2)' : 'transparent',
-                    border: '1px solid rgba(102, 126, 234, 0.3)',
+                    background: controlsOpen
+                        ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.35) 0%, rgba(118, 75, 162, 0.35) 100%)'
+                        : 'rgba(255, 255, 255, 0.05)',
+                    border: controlsOpen ? '2px solid rgba(102, 126, 234, 0.5)' : '2px solid rgba(102, 126, 234, 0.3)',
                     borderRadius: '8px',
-                    padding: '8px 12px',
+                    padding: '10px 16px',
                     color: '#FFF8F0',
-                    fontSize: '13px',
-                    fontWeight: '600',
+                    fontSize: '14px',
+                    fontWeight: '700',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
                     minHeight: '44px',
+                    boxShadow: controlsOpen ? '0 2px 8px rgba(102, 126, 234, 0.3)' : 'none',
                     transition: 'all 0.2s ease'
                 }}
             >
-                Controls {controlsOpen ? '▼' : '▶'}
+                Controls
             </button>
         </div>
     );
