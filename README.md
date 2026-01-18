@@ -276,7 +276,10 @@ npm run build
 - ✨ **Rim Light (Backlight)**: 역광 조명을 추가하여 물체의 실루엣을 강조하고 "떠 있는(Floating)" 느낌 구현
 - 🎛️ **Effects 패널**: Leva에서 모든 시각 효과를 실시간으로 On/Off 및 강도 조절 가능
 - 📐 **구조 원점(Origin) 조정**: NCM/LCO 구조의 Z축을 -1/6 이동하여 전이금속(Polyhedra) 층이 0, 1/3, 2/3 위치에 오도록 수정
-- 🏷️ **원소 범례(Legend)**: 화면 상단에 현재 구조의 원소 종류와 색상 정보를 표시 (모바일/데스크톱 공통)
+- 🏷️ **원소 범례(Legend)**: 화면 상단에 현재 구조의 원소 종류와 색상 정보를 표시
+  - **Adaptive Color**: `mix-blend-mode: difference`를 적용하여 배경색(밝음/어두움)에 따라 글자색 자동 반전
+  - **Minimal Design**: 배경색을 제거하고 투명한 디자인 적용
+- 🔧 **유지보수**: 애플리케이션 타이틀 철자 수정 (Kristal → Crystal Structure)
 
 ### v1.3.0 - 시각화 및 UX 대규모 업데이트
 - ✅ **LFP/NCM 기본 격자값 최적화**: 
