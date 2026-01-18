@@ -10,7 +10,7 @@
 
 ### 🔋 지원하는 양극재
 - **NCM (LiNiCoMnO₂)** - 층상 산화물 양극재
-  - NCM811 (Ni:Co:Mn = 8:1:1)
+  - NCM811 (Ni:Co:Mn = 8:1:1) - 기본값
   - NCM622 (Ni:Co:Mn = 6:2:2)
   - NCM111 (Ni:Co:Mn = 1:1:1)
 - **LFP (LiFePO₄)** - 올리빈 구조 양극재
@@ -23,8 +23,8 @@
 - **자동 회전** - 역동적인 프레젠테이션을 위해 기본 활성화
 - **프리미엄 조명** - 스튜디오 품질의 조명 프리셋
 
-###  내보내기 및 캡처
-- **스냅샷** - 고해상도 PNG 스크린샷 저장
+### 📷 내보내기 및 캡처
+- **Snapshot** - 고해상도 PNG 스크린샷 저장
 - **3D 모델 내보내기** - GLB/GLTF 파일 형식으로 내보내기
 - **자동 파일명** - 구조 타입과 타임스탬프로 파일명 생성
 
@@ -79,17 +79,18 @@ npm run build
 ## 🎮 사용 방법
 
 ### 데스크톱
-- **구조 선택**: 상단 좌측 드롭다운 메뉴
-  - NCM 선택 시 비율(811/622/111) 추가 선택 가능
-- **스냅샷**: 상단 우측 "Snapshot" 버튼
+- **구조 선택**: 상단 중앙 드롭다운 메뉴
+  - NCM 선택 시 비율(811/622/111) 서브메뉴 표시
+  - 선택한 구조가 즉시 렌더링됨
+- **Snapshot**: 상단 우측 버튼
 - **공간군 정보**: 좌측 패널 (항상 표시)
-- **상세 컨트롤**: 우측 패널 (Leva 인터페이스)
+- **상세 컨트롤**: 우측 패널 (Unit Cell, 원소 설정 등)
 - **Reset View**: 좌측 하단
-- **Export 3D**: Reset View 왼쪽
+- **Export 3D**: 좌측 하단 (Reset View 오른쪽)
 
 ### 모바일
 - **헤더 버튼**:
-  - Structure - 양극재 선택
+  - Structure - 양극재 및 비율 선택
   - Info ▶ - 공간군 패널 토글
   - Controls - Leva 컨트롤 토글
 - **하단 버튼**:
@@ -111,16 +112,16 @@ npm run build
 - **구조**: 층상 α-NaFeO₂ 타입
 - **배위**: 팔면체 (MO₆)
 - **Ni/Co/Mn 비율**:
-  - NCM811: 고용량, 고니켈 (80% Ni)
-  - NCM622: 균형잡힌 특성 (60% Ni)
-  - NCM111: 안정성 우선 (33.3% Ni)
+  - NCM811: 고용량, 고니켈 (80% Ni) - 가장 높은 에너지 밀도
+  - NCM622: 균형잡힌 특성 (60% Ni) - 성능과 안정성 균형
+  - NCM111: 안정성 우선 (33.3% Ni) - 가장 안정적
 - **권장 뷰**: 측면 보기, ny=2-3으로 층상 구조 관찰
 
 ### LFP (Pnma, #62)
 - **결정계**: 직방정계 (Orthorhombic)
 - **구조**: 올리빈 (Olivine)
 - **배위**: 팔면체 MO₆ + 사면체 PO₄
-- **특징**: 1차원 리튬 확산 채널, 높은 안정성
+- **특징**: 1차원 리튬 확산 채널, 높은 열안정성
 
 ---
 
@@ -130,7 +131,7 @@ npm run build
 - **Three.js** - 3D 렌더링 엔진
 - **@react-three/fiber** - Three.js용 React 렌더러
 - **@react-three/drei** - 유용한 헬퍼
-- **@react-three/postprocessing** - 시각 효과 (Bloom, SSAO, Vignette)
+- **@react-three/postprocessing** - 시각 효과 (Bloom, Vignette)
 - **Leva** - GUI 컨트롤
 - **TypeScript** - 타입 안정성
 - **Vite** - 빌드 도구
@@ -143,7 +144,7 @@ npm run build
 src/
 ├── components/
 │   ├── scene/
-│   │   ├── StructureScene.tsx    # 메인 3D 씬
+│   │   ├── StructureScene.tsx    # 메인 3D 씬 (이벤트 기반 구조 변경)
 │   │   ├── Atoms.tsx              # 원자 렌더링
 │   │   ├── Bonds.tsx              # 결합 시각화
 │   │   ├── Polyhedra.tsx          # 배위 다면체
@@ -155,7 +156,7 @@ src/
 │       └── MobileHeader.tsx       # 모바일 네비게이션
 ├── core/
 │   ├── builders/
-│   │   ├── NCMBuilder.ts          # NCM 구조 생성기
+│   │   ├── NCMBuilder.ts          # NCM 구조 생성기 (비율별)
 │   │   └── LFPBuilder.ts          # LFP 구조 생성기
 │   ├── utils/
 │   │   ├── CIFParser.ts           # CIF 파일 파서
@@ -207,7 +208,7 @@ export const generateNewMaterial = (nx: number, ny: number, nz: number): Structu
 };
 ```
 
-2. `StructureScene.tsx`의 재료 선택에 추가
+2. `StructureScene.tsx`의 구조 생성 로직에 추가
 
 3. `SpaceGroupPanel.tsx`에 공간군 정보 업데이트
 
@@ -266,15 +267,21 @@ npm run build
 
 ---
 
-## 📝 최신 업데이트 (v1.1.0)
+## 📝 최신 업데이트 (v1.2.0)
 
-### 변경 사항
+### v1.2.0 - UI 개선 및 구조 선택 수정
+- ✅ **구조 선택 기능 완전 작동**: 이벤트 기반으로 재설계, 실시간 변경 적용
+- ✅ **Leva에서 구조 선택 제거**: 별도 UI로 분리, 더 직관적인 조작
+- ✅ **UI 레이아웃 충돌 해결**: 
+  - 상단 바 우측 여백 조정 (Leva와 겹치지 않음)
+  - Leva z-index 조정 (999)
+- ✅ **Export 버튼 재배치**: 좌측 하단, Reset View와 동일 레벨
+- ✅ **모바일에서 Export 숨김**: 데스크톱 전용 기능
+
+### v1.1.0 - NCM 비율 선택 추가
 - ✅ **NCM 비율 선택 기능 추가**: NCM 선택 시 811/622/111 비율 선택 가능
 - ✅ **카메라 프리셋 제거**: 불필요한 카메라 프리셋 UI 제거
-- ✅ **Export 버튼 위치 변경**: 우측 하단 → 좌측 하단 (Reset View 왼쪽)
 - ✅ **이모지 제거**: 모든 UI에서 불필요한 이모지 제거
-- ✅ **Leva 패널 z-index 수정**: 다른 요소와 겹치지 않도록 조정
-- ✅ **구조 변경 이벤트 수정**: 실제로 구조가 변경되도록 개선
 
 ---
 
@@ -290,14 +297,14 @@ A. PowerShell 보안 설정 때문입니다. 해결 방법:
    Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
    ```
 
-**Q. Leva 컨트롤이 보이지 않아요**
-A. z-index가 1000으로 설정되어 있습니다. 브라우저 새로고침 (Ctrl+Shift+R)
+**Q. 구조를 변경했는데 변하지 않아요**
+A. v1.2.0에서 완전히 수정되었습니다. 브라우저 콘솔(F12)에서 "Structure change event:" 로그를 확인하세요
 
 **Q. NCM 비율을 어떻게 선택하나요?**
-A. 구조 선택 드롭다운에서 "NCM"을 선택하면 추가 메뉴가 나타납니다
+A. 상단 구조 선택 드롭다운에서 "NCM"을 선택하면 비율 서브메뉴가 자동으로 나타납니다
 
-**Q. 구조가 변경되지 않아요**
-A. 이벤트 핸들러가 업데이트되었습니다. 최신 버전으로 새로고침하세요
+**Q. Leva 패널이 다른 요소와 겹쳐요**
+A. v1.2.0에서 레이아웃이 최적화되었습니다. 상단 바가 Leva 패널을 침범하지 않도록 조정되었습니다
 
 ---
 
