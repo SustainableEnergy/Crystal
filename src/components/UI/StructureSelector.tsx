@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { SUPPORTED_MATERIALS } from '../../core/constants/materials';
 
 interface StructureSelectorProps {
     currentStructure: string;
@@ -17,10 +18,10 @@ export const StructureSelector = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const structures = [
-        { id: 'NCM-811', name: 'NCM811 (Ni:Co:Mn = 8:1:1)' },
-        { id: 'NCM-622', name: 'NCM622 (Ni:Co:Mn = 6:2:2)' },
-        { id: 'NCM-111', name: 'NCM111 (Ni:Co:Mn = 1:1:1)' },
-        { id: 'LFP', name: 'LFP (LiFePO₄)' },
+        ...SUPPORTED_MATERIALS.map(mat => ({
+            id: mat.id,
+            name: mat.displayName
+        })),
         { id: 'CIF', name: 'CIF 파일 불러오기' }
     ];
 
@@ -43,10 +44,11 @@ export const StructureSelector = ({
         const file = e.target.files?.[0];
         if (file) {
             const text = await file.text();
-            onStructureChange('CIF Option', text);
+            onStructureChange('CIF Option', text); // Pass 'CIF Option' and content
             setIsOpen(false);
         }
     };
+
 
     const getCurrentName = () => {
         if (currentStructure.startsWith('NCM')) {
@@ -151,13 +153,6 @@ export const StructureSelector = ({
                     </div>
                 )}
 
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".cif"
-                    onChange={handleFileUpload}
-                    style={{ display: 'none' }}
-                />
             </>
         );
     }
@@ -243,6 +238,7 @@ export const StructureSelector = ({
                 </div>
             )}
 
+            {/* Hidden File Input */}
             <input
                 ref={fileInputRef}
                 type="file"

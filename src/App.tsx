@@ -73,6 +73,7 @@ function App() {
 
   // New states
   const [currentStructure, setCurrentStructure] = useState('NCM-811');
+  const [showBackground, setShowBackground] = useState(true);
 
   const handleResetCamera = () => {
     const event = new CustomEvent('reset-camera');
@@ -106,13 +107,63 @@ function App() {
     link.click();
   };
 
+  const handleTransparentSnapshot = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Temporarily hide background
+    setShowBackground(false);
+
+    // Wait for one frame to render without background
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        // Capture the canvas
+        const dataURL = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.download = `cathode-${currentStructure}-transparent-${Date.now()}.png`;
+        link.href = dataURL;
+        link.click();
+
+        // Restore background immediately
+        setShowBackground(true);
+      });
+    });
+  };
+
   useEffect(() => {
     const handleSpaceGroupUpdate = (e: any) => {
       setSpaceGroupInfo(e.detail);
     };
+
+    const handleSnapshotRequest = (e: any) => {
+      const { transparent, resolution = 1 } = e.detail || {};
+
+      console.log('[App] Received snapshot-request:', { transparent, resolution });
+
+      // If high-resolution is enabled, use enhanced snapshot
+      if (resolution > 1) {
+        console.log('[App] Dispatching high-res-snapshot event');
+        // Dispatch event to StructureScene to handle with useThree access
+        window.dispatchEvent(new CustomEvent('high-res-snapshot', {
+          detail: { transparent, resolution, currentStructure }
+        }));
+      } else if (transparent) {
+        console.log('[App] Using transparent snapshot');
+        handleTransparentSnapshot();
+      } else {
+        console.log('[App] Using normal snapshot');
+        handleSnapshot();
+      }
+    };
+
     window.addEventListener('space-group-update', handleSpaceGroupUpdate);
-    return () => window.removeEventListener('space-group-update', handleSpaceGroupUpdate);
-  }, []);
+    window.addEventListener('snapshot-request', handleSnapshotRequest);
+
+    return () => {
+      window.removeEventListener('space-group-update', handleSpaceGroupUpdate);
+      window.removeEventListener('snapshot-request', handleSnapshotRequest);
+    };
+  }, [currentStructure]);
 
   return (
     <ErrorBoundary name="App Root">
@@ -157,7 +208,7 @@ function App() {
               onStructureChange={handleStructureChange}
               isMobile={false}
             />
-            <SnapshotButton onCapture={handleSnapshot} isMobile={false} />
+            <SnapshotButton isMobile={false} />
           </div>
         </div>
       )}
@@ -268,7 +319,7 @@ function App() {
           dpr={[1, 2]}
           gl={{
             antialias: true,
-            alpha: false,
+            alpha: true,
             toneMappingExposure: 1.0,
             localClippingEnabled: true,
             preserveDrawingBuffer: true
@@ -277,12 +328,13 @@ function App() {
             setShowExport(true);
           }}
         >
-          <color attach="background" args={['#0a0a0a']} />
+          {showBackground && <color attach="background" args={['#0a0a0a']} />}
           <Environment preset="studio" environmentIntensity={0.4} backgroundBlurriness={0.8} />
           <DynamicLights />
           <Suspense fallback={null}>
             <StructureScene
               onSpaceGroupUpdate={setSpaceGroupInfo}
+              isMobile={isMobile}
             />
           </Suspense>
           <ContactShadows position={[0, -2.5, 0]} opacity={0.15} scale={25} blur={3} far={4} />
@@ -327,7 +379,7 @@ function App() {
           pointerEvents: 'none'
         }}>
           <div style={{ pointerEvents: 'auto' }}>
-            <SnapshotButton onCapture={handleSnapshot} isMobile={true} />
+            <SnapshotButton isMobile={true} />
           </div>
 
           <button
@@ -398,7 +450,7 @@ function App() {
         </>
       )}
 
-      <Legend material={currentStructure} />
+      <Legend material={currentStructure} isMobile={isMobile} />
 
       {(!isMobile || structureSelectorOpen) && (
         <StructureSelector

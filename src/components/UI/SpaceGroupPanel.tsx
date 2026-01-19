@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { MATERIALS } from '../../core/constants/materials';
 
 interface SpaceGroupPanelProps {
     material: string;
@@ -14,31 +15,27 @@ interface SpaceGroupPanelProps {
     isOpen?: boolean;
 }
 
-interface SpaceGroupInfo {
-    spaceGroup: string;
-    number: number;
-    system: string;
-    description: string;
-}
 
-const spaceGroupData: { [key: string]: SpaceGroupInfo } = {
-    'NCM': {
-        spaceGroup: 'R-3m',
-        number: 166,
-        system: 'Trigonal (Rhombohedral)',
-        description: 'Layered structure with rhombohedral symmetry'
-    },
-    'LFP': {
-        spaceGroup: 'Pnma',
-        number: 62,
-        system: 'Orthorhombic',
-        description: 'Olivine structure with orthorhombic symmetry'
-    }
-};
 
 export const SpaceGroupPanel = ({ material, unitCell, isMobile = false, isOpen = true }: SpaceGroupPanelProps) => {
     const info = useMemo(() => {
-        return spaceGroupData[material] || spaceGroupData['NCM'];
+        // Get  material data from constants
+        const materialData = MATERIALS[material];
+        if (materialData) {
+            return {
+                spaceGroup: materialData.spaceGroup,
+                number: materialData.spaceGroupNumber,
+                system: materialData.crystalSystem,
+                description: materialData.description
+            };
+        }
+        // Fallback to default
+        return {
+            spaceGroup: 'R-3m',
+            number: 166,
+            system: 'Trigonal (Rhombohedral)',
+            description: 'Layered structure'
+        };
     }, [material]);
 
     // Don't render if mobile and closed

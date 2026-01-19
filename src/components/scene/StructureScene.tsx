@@ -1,8 +1,11 @@
 ﻿import { useMemo, useRef, useState, useEffect } from 'react';
-import { useControls, folder, button, monitor, buttonGroup } from 'leva';
+import { useControls, folder, buttonGroup } from 'leva';
+import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { generateNCM } from '../../core/builders/NCMBuilder';
 import { generateLFP } from '../../core/builders/LFPBuilder';
+import { generateLMFP } from '../../core/builders/LMFPBuilder';
+import { MATERIALS, getMaterialFamily, MATERIAL_FAMILIES } from '../../core/constants/materials';
 import { parseCIF } from '../../core/utils/CIFParser';
 import { Atoms } from './Atoms';
 import { Bonds } from './Bonds';
@@ -10,8 +13,9 @@ import { Polyhedra } from './Polyhedra';
 import { Center, OrbitControls, Environment } from '@react-three/drei';
 import { EffectComposer, SSAO, Bloom } from '@react-three/postprocessing';
 import { exportScene } from '../../core/utils/Exporter';
+import { captureHighRes } from '../../core/utils/SnapshotUtil';
 import type { Atom } from '../../core/types';
-import { v4 as uuidv4 } from 'uuid';
+
 import { ErrorBoundary } from '../UI/ErrorBoundary';
 import { ELEMENT_COLORS } from './Materials';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
@@ -79,11 +83,10 @@ const ElementController = ({
 };
 
 // --- MAIN COMPONENT ---
-export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (info: any) => void }) => {
+export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpaceGroupUpdate?: (info: any) => void, isMobile?: boolean }) => {
     const groupRef = useRef<THREE.Group>(null);
     const orbitRef = useRef<any>(null);
 
-    const [customAtoms, setCustomAtoms] = useState<Atom[]>([]);
     const [cifAtoms, setCifAtoms] = useState<Atom[]>([]);
     const [elementSettings, setElementSettings] = useState<any>({});
 
@@ -93,10 +96,8 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
 
     // Get default values based on material
     const getDefaultCellSize = () => {
-        const baseMat = material.split('-')[0];
-        if (baseMat === 'LFP') return { nx: 3, ny: 3, nz: 6 };
-        if (baseMat === 'NCM') return { nx: 6, ny: 6, nz: 3 };
-        return { nx: 4, ny: 4, nz: 4 };
+        const materialData = MATERIALS[material];
+        return materialData?.defaultUnitCell || { nx: 4, ny: 4, nz: 4 };
     };
 
     const defaults = getDefaultCellSize();
@@ -104,7 +105,7 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
     // Hierarchical Controls - Material removed from Leva
     // Hierarchical Controls - Material removed from Leva
     const [unitCellParams, setUnitCell] = useControls('Unit Cell', () => ({
-        nx: { value: defaults.nx, min: 1, max: 10, step: 1, label: 'X Repeat', render: () => ['NCM', 'LFP'].includes(material.split('-')[0]) },
+        nx: { value: defaults.nx, min: 1, max: 10, step: 1, label: 'X Repeat', render: () => [MATERIAL_FAMILIES.NCM, MATERIAL_FAMILIES.LFP, MATERIAL_FAMILIES.LMFP].includes(getMaterialFamily(material)) },
         'adj_x': buttonGroup({
             '-': (get) => {
                 const val = get('Unit Cell.nx');
@@ -116,7 +117,7 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
             },
         }),
 
-        ny: { value: defaults.ny, min: 1, max: 10, step: 1, label: 'Y Repeat', render: () => ['NCM', 'LFP'].includes(material.split('-')[0]) },
+        ny: { value: defaults.ny, min: 1, max: 10, step: 1, label: 'Y Repeat', render: () => [MATERIAL_FAMILIES.NCM, MATERIAL_FAMILIES.LFP, MATERIAL_FAMILIES.LMFP].includes(getMaterialFamily(material)) },
         'adj_y': buttonGroup({
             '-': (get) => {
                 const val = get('Unit Cell.ny');
@@ -128,7 +129,7 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
             },
         }),
 
-        nz: { value: defaults.nz, min: 1, max: 10, step: 1, label: 'Z Repeat', render: () => ['NCM', 'LFP'].includes(material.split('-')[0]) },
+        nz: { value: defaults.nz, min: 1, max: 10, step: 1, label: 'Z Repeat', render: () => [MATERIAL_FAMILIES.NCM, MATERIAL_FAMILIES.LFP, MATERIAL_FAMILIES.LMFP].includes(getMaterialFamily(material)) },
         'adj_z': buttonGroup({
             '-': (get) => {
                 const val = get('Unit Cell.nz');
@@ -149,38 +150,7 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
         setUnitCell({ nx: d.nx, ny: d.ny, nz: d.nz });
     }, [material, setUnitCell]);
 
-    useControls('🧱 LEGO Builder', {
-        legoElement: { options: ['Li', 'Co', 'Ni', 'Mn', 'Fe', 'P', 'O'], value: 'Li' },
-        'Position': folder({
-            legoX: { value: 0, step: 0.1, label: 'X' },
-            legoY: { value: 0, step: 0.1, label: 'Y' },
-            legoZ: { value: 0, step: 0.1, label: 'Z' },
-        }),
-        'ADD ATOM (+)': button((get) => {
-            const el = get('🧱 LEGO Builder.legoElement');
-            const x = get('🧱 LEGO Builder.Position.legoX');
-            const y = get('🧱 LEGO Builder.Position.legoY');
-            const z = get('🧱 LEGO Builder.Position.legoZ');
-            setCustomAtoms(prev => [...prev, { id: uuidv4(), element: el, position: [x, y, z] }]);
-        }),
-        'CLEAR ALL': button(() => setCustomAtoms([]))
-    }, { render: (get) => get('📦 Structure.material') === 'LEGO' });
 
-    useControls('📄 CIF Import', {
-        'Paste CIF Data': button(() => {
-            const text = prompt("Paste CIF Content Here:");
-            if (text) {
-                const result = parseCIF(text);
-                if (result.atoms.length > 0) {
-                    setCifAtoms(result.atoms);
-                    alert(`Loaded ${result.atoms.length} atoms.`);
-                } else {
-                    alert("Failed to parse. Check console.");
-                }
-            }
-        }),
-        'Status': monitor(() => cifAtoms.length > 0 ? `${cifAtoms.length} Atoms` : '-', { graph: false })
-    }, { render: (get) => get('📦 Structure.material') === 'CIF Option' });
 
     const {
         preset, radiusScale,
@@ -204,7 +174,7 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
         }),
         'Display': folder({
             showBonds: { value: false, label: 'Show Bonds' },
-            showPolyhedra: { value: true, label: 'Show Polyhedra', render: (get) => !['LEGO', 'CIF Option'].includes(get('📦 Structure.material')) },
+            showPolyhedra: { value: true, label: 'Show Polyhedra' },
             showAxes: { value: false, label: 'Show Pivot' },
         }),
         'Clipping': folder({
@@ -235,6 +205,21 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
 
             // Trigger camera reset
             window.dispatchEvent(new Event('reset-camera'));
+
+            // Handle CIF data loading
+            if (structure === 'CIF Option' && (e.detail as any).cifData) {
+                const cifContent = (e.detail as any).cifData;
+                try {
+                    const result = parseCIF(cifContent);
+                    if (result.atoms.length > 0) {
+                        setCifAtoms(result.atoms);
+                        console.log(`Loaded ${result.atoms.length} atoms from CIF`);
+                    }
+                } catch (err) {
+                    console.error("Failed to parse CIF", err);
+                    alert("Failed to parse CIF file");
+                }
+            }
 
             // Extract NCM ratio if present
             if (structure.startsWith('NCM-')) {
@@ -317,13 +302,16 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
     const structureData = useMemo(() => {
         try {
             let data;
-            const baseMaterial = material.split('-')[0]; // Extract base material (NCM from NCM-811)
+            const baseMaterial = getMaterialFamily(material);
 
-            switch (baseMaterial) {
-                case 'NCM': data = generateNCM(nx, ny, nz, ncmRatio as any); break;
-                case 'LFP': data = generateLFP(nx, ny, nz); break;
-                case 'LEGO': data = { atoms: customAtoms, unitCell: { a: 10, b: 10, c: 10, alpha: 90, beta: 90, gamma: 90 } }; break;
-                case 'CIF': data = { atoms: cifAtoms, unitCell: { a: 10, b: 10, c: 10, alpha: 90, beta: 90, gamma: 90 } }; break;
+            switch (baseMaterial as any) {
+                case MATERIAL_FAMILIES.NCM: data = generateNCM(nx, ny, nz, ncmRatio as any); break;
+                case MATERIAL_FAMILIES.LFP: data = generateLFP(nx, ny, nz); break;
+                case MATERIAL_FAMILIES.LMFP: data = generateLMFP(nx, ny, nz); break;
+                case 'CIF':
+                case 'CIF Option':
+                    data = { atoms: cifAtoms, unitCell: { a: 10, b: 10, c: 10, alpha: 90, beta: 90, gamma: 90 } };
+                    break;
                 default: data = generateNCM(nx, ny, nz, '811');
             }
 
@@ -340,7 +328,7 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
             console.error("Structure Generation Error", e);
             return { atoms: [], unitCell: { a: 10, b: 10, c: 10, alpha: 90, beta: 90, gamma: 90 } };
         }
-    }, [material, nx, ny, nz, ncmRatio, customAtoms, cifAtoms, onSpaceGroupUpdate]);
+    }, [material, nx, ny, nz, ncmRatio, onSpaceGroupUpdate]);
 
     const materialProps = useMemo(() => {
         const base = { roughness, metalness, clearcoat, clearcoatRoughness: 0.2, transmission, ior, thickness, emissiveIntensity, opacity: 1, transparent: false };
@@ -395,6 +383,42 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
         return () => window.removeEventListener('reset-camera', handleReset);
     }, []);
 
+    // High-res snapshot handler with useThree access
+    const { gl, scene, camera } = useThree();
+
+    useEffect(() => {
+        const handleHighResSnapshot = (e: any) => {
+            const { transparent, resolution, autoFrame, currentStructure } = e.detail || {};
+
+            try {
+                // Save original background
+                const originalBackground = scene.background;
+
+                // Apply transparent background if requested
+                if (transparent) {
+                    scene.background = null;
+                }
+
+                // Capture using utility
+                captureHighRes(gl, scene, camera as THREE.PerspectiveCamera, {
+                    resolution: resolution || 1,
+                    transparent: transparent || false,
+                    autoFrame: autoFrame || false,
+                    filename: `cathode-${currentStructure}-${resolution}x-${Date.now()}.png`
+                });
+
+                // Restore background
+                scene.background = originalBackground;
+            } catch (error) {
+                console.error('High-res snapshot failed:', error);
+                alert('스냅샷 생성 실패. 콘솔을 확인하세요.');
+            }
+        };
+
+        window.addEventListener('high-res-snapshot', handleHighResSnapshot);
+        return () => window.removeEventListener('high-res-snapshot', handleHighResSnapshot);
+    }, [gl, scene, camera]);
+
     const effects = [];
     if (enableSSAO) effects.push(<SSAO key="ssao" intensity={ssaoIntensity} radius={0.03} luminanceInfluence={0.5} />);
     if (enableBloom) effects.push(<Bloom key="bloom" intensity={0.5} luminanceThreshold={0.85} radius={0.6} mipmapBlur />);
@@ -421,7 +445,7 @@ export const StructureScene = ({ onSpaceGroupUpdate }: { onSpaceGroupUpdate?: (i
                 <directionalLight position={[0, -5, -10]} intensity={backlightIntensity * 0.5} color="#cbd5e1" />
 
                 <Environment preset={lightingValues.env as any} blur={0.6} />
-                <Center key={material} onCentered={() => {
+                <Center key={material} position={[0, isMobile ? 2.0 : 0, 0]} onCentered={() => {
                     // Force re-render after centering to fix disappearing atoms
                     // This is a common fix for Center component issues
                 }}>
