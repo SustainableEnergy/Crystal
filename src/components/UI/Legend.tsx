@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ELEMENT_COLORS } from '../scene/Materials';
+import { ELEMENT_COLORS } from '../../core/constants/materials';
 
 interface LegendProps {
     material: string;

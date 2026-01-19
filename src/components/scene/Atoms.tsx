@@ -1,8 +1,10 @@
 import { useMemo } from 'react';
 import { Instance, Instances } from '@react-three/drei';
 import type { Atom } from '../../core/types';
-import { ELEMENT_COLORS, ELEMENT_RADII } from './Materials';
+import { ELEMENT_COLORS, ELEMENT_RADII } from '../../core/constants/materials';
 import * as THREE from 'three';
+import { EtherealAtomsGroup } from './EtherealAtomsGroup';
+import { useControls } from 'leva';
 
 interface AtomProps {
   atoms: Atom[];
@@ -22,6 +24,8 @@ const defaultMaterialProps = {
   transparent: false
 };
 
+const ETHEREAL_TARGETS = ['Li', 'Na'];
+
 export const Atoms = ({
   atoms,
   clippingPlanes,
@@ -30,21 +34,32 @@ export const Atoms = ({
   materialProps = defaultMaterialProps
 }: AtomProps) => {
 
-  const groupedAtoms = useMemo(() => {
-    const groups: { [element: string]: Atom[] } = {};
+  const { enableEthereal } = useControls('⚛️ Ethereal Effects', {
+    enableEthereal: { value: false, label: 'Enable Cloud (Li/Na)' }
+  });
+
+  const { groups, etherealGroups } = useMemo(() => {
+    const standard: { [element: string]: Atom[] } = {};
+    const ethereal: { [element: string]: Atom[] } = {};
+
     atoms.forEach(atom => {
-      if (!groups[atom.element]) groups[atom.element] = [];
-      groups[atom.element].push(atom);
+      // Check if this element should be ethereal
+      if (ETHEREAL_TARGETS.includes(atom.element)) {
+        if (!ethereal[atom.element]) ethereal[atom.element] = [];
+        ethereal[atom.element].push(atom);
+      } else {
+        if (!standard[atom.element]) standard[atom.element] = [];
+        standard[atom.element].push(atom);
+      }
     });
-    return groups;
+    return { groups: standard, etherealGroups: ethereal };
   }, [atoms]);
 
   return (
     <group>
-      {Object.entries(groupedAtoms).map(([element, elementAtoms]) => {
-        // Element specific overrides
+      {/* Standard Atoms (Instanced Mesh) */}
+      {Object.entries(groups).map(([element, elementAtoms]) => {
         const settings = elementSettings[element] || { scale: 1.0, visible: true, color: ELEMENT_COLORS[element] };
-
         if (settings.visible === false) return null;
 
         const finalRadius = (ELEMENT_RADII[element] || 0.5) * radiusScale * settings.scale;
@@ -65,12 +80,60 @@ export const Atoms = ({
               {...defaultMaterialProps}
               {...materialProps}
             />
-
             {elementAtoms.map((atom) => (
-              <Instance
-                key={atom.id}
-                position={atom.position}
-              />
+              <Instance key={atom.id} position={atom.position} />
+            ))}
+          </Instances>
+        );
+      })}
+
+      {/* Ethereal Atoms (Particle System) or Standard Fallback */}
+      {Object.entries(etherealGroups).map(([element, elementAtoms]) => {
+        const settings = elementSettings[element] || { scale: 1.0, visible: true, color: ELEMENT_COLORS[element] };
+        if (settings.visible === false) return null;
+
+        const color = settings.color || ELEMENT_COLORS[element] || '#ccc';
+
+        // If enabled, render optimized cloud
+        if (enableEthereal) {
+          const finalRadius = (ELEMENT_RADII[element] || 0.5) * radiusScale * settings.scale;
+          // Generate core color (Brighter version of main color)
+          const c = new THREE.Color(color);
+          const coreC = c.clone().lerp(new THREE.Color('#ffffff'), 0.7).getStyle(); // 70% white, 30% color
+
+          return (
+            <EtherealAtomsGroup
+              key={`ethereal-${element}`}
+              atoms={elementAtoms}
+              color={color}
+              coreColor={coreC}          // Pass tinted white core
+              size={0.15 * finalRadius}
+              radius={finalRadius}
+              particlesPerAtom={150}      // Reduced for cleaner look (from 600)
+            />
+          );
+        }
+
+        // Fallback to standard sphere if disabled
+        const finalRadius = (ELEMENT_RADII[element] || 0.5) * radiusScale * settings.scale;
+
+        return (
+          <Instances
+            key={`${element}-fallback-${elementAtoms.length}`}
+            range={elementAtoms.length}
+            limit={20000}
+            frustumCulled={false}
+          >
+            <sphereGeometry args={[finalRadius, 32, 32]} />
+            <meshPhysicalMaterial
+              color={color}
+              clippingPlanes={clippingPlanes}
+              clipShadows
+              {...defaultMaterialProps}
+              {...materialProps}
+            />
+            {elementAtoms.map((atom) => (
+              <Instance key={atom.id} position={atom.position} />
             ))}
           </Instances>
         );

@@ -107,3 +107,32 @@ export const supportsUnitCellControls = (materialId: string): boolean => {
     const supportedFamilies: MaterialFamily[] = [MATERIAL_FAMILIES.NCM, MATERIAL_FAMILIES.LFP, MATERIAL_FAMILIES.LMFP];
     return supportedFamilies.includes(family);
 };
+
+
+// --- ELEMENT PROPERTIES ---
+
+export const ELEMENT_COLORS: { [key: string]: string } = {
+    Li: '#0277BD', // Premium Azure
+    Ni: '#00897B', // Deep Mint (Teal) - Less neon, more distinct
+    Co: '#EF6C00', // Burnt Orbit (Dark Orange) - Richer tone
+    Mn: '#7E57C2', // Royal Violet - Balanced purple
+    Al: '#546E7A', // Blue Grey (Deep metal) - Distinct from Li
+    Fe: '#8D6E63', // Iron Bronze (Earth tone)
+    P: '#6D4C41', // Deep Earth
+    O: '#1A237E', // Midnight Depth (Navy) - Contrast for light bg
+    Na: '#FBC02D', // Sodium Gold
+    Mg: '#F57F17', // Orange/Yellow
+};
+
+export const ELEMENT_RADII: { [key: string]: number } = {
+    Li: 0.36,   // Li+ (Reduced to 80% of 0.45)
+    O: 0.80,    // O2-
+    Co: 0.35,   // Co3+
+    Ni: 0.40,   // Ni2+
+    Mn: 0.35,   // Mn3+/Mn4+
+    Fe: 0.40,   // Fe2+
+    P: 0.25,    // P5+
+    Na: 0.60,   // Na (Larger than Li)
+    Mg: 0.45,
+    Al: 0.35,
+};

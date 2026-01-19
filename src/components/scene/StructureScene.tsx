@@ -17,7 +17,7 @@ import { captureHighRes } from '../../core/utils/SnapshotUtil';
 import type { Atom } from '../../core/types';
 
 import { ErrorBoundary } from '../UI/ErrorBoundary';
-import { ELEMENT_COLORS } from './Materials';
+import { ELEMENT_COLORS } from '../../core/constants/materials';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 
 // --- SUB-COMPONENT: DYNAMIC ELEMENT CONTROLS ---
@@ -155,7 +155,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
     const {
         preset, radiusScale,
         roughness, metalness, clearcoat, transmission, ior, thickness, emissiveIntensity,
-        showBonds, showPolyhedra, showAxes,
+        showBonds, showPolyhedra, showPolyhedraEdges, showAxes,
         clipXMin, clipXMax, clipYMin, clipYMax, clipZMin, clipZMax,
         enableSSAO, ssaoIntensity, enableBloom, enableFog, fogNear, fogFar, backlightIntensity
     } = useControls('🎨 Visual Style', {
@@ -175,6 +175,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
         'Display': folder({
             showBonds: { value: false, label: 'Show Bonds' },
             showPolyhedra: { value: true, label: 'Show Polyhedra' },
+            showPolyhedraEdges: { value: true, label: 'Polyhedra Edges', render: (get) => get('🎨 Visual Style.Display.showPolyhedra') },
             showAxes: { value: false, label: 'Show Pivot' },
         }),
         'Clipping': folder({
@@ -461,6 +462,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
                         <Polyhedra
                             atoms={structureData.atoms}
                             visible={showPolyhedra}
+                            showEdges={showPolyhedraEdges} // Controlled by Leva
                             clippingPlanes={planes}
                             elementSettings={elementSettings}
                         />
