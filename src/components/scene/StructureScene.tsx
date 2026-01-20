@@ -404,102 +404,52 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
                     scene.environment = null;
                 }
 
-                // 1. Calculate Bounding Box
-                let bbox = new THREE.Box3();
-                if (groupRef.current) {
-                    bbox.setFromObject(groupRef.current);
-                    console.log('[Snapshot] Bounding box:', {
-                        min: bbox.min,
-                        max: bbox.max,
-                        isEmpty: bbox.isEmpty()
-                    });
-                }
-
-                // 2. Create Framed Camera - Preserve viewing angle, adjust distance only
+                // 1. Calculate Bounding Sphere (simpler and more reliable)
                 let captureCamera = camera;
 
                 if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
                     const perspCamera = camera as THREE.PerspectiveCamera;
-                    const framedCamera = perspCamera.clone();
 
-                    if (!bbox.isEmpty()) {
-                        // Get current viewing direction and camera position
-                        const viewDirection = perspCamera.getWorldDirection(new THREE.Vector3());
-                        const currentPos = perspCamera.position.clone();
+                    if (groupRef.current) {
+                        // Calculate bounding box first
+                        const bbox = new THREE.Box3().setFromObject(groupRef.current);
 
-                        // Calculate bbox center and size
-                        const center = bbox.getCenter(new THREE.Vector3());
-                        const size = bbox.getSize(new THREE.Vector3());
+                        if (!bbox.isEmpty()) {
+                            // Get bounding sphere from box
+                            const center = bbox.getCenter(new THREE.Vector3());
+                            const size = bbox.getSize(new THREE.Vector3());
+                            const radius = size.length() / 2; // Diagonal / 2 = sphere radius
 
-                        // Get all 8 corners of the bounding box
-                        const corners = [
-                            new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.min.z),
-                            new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.max.z),
-                            new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.min.z),
-                            new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.max.z),
-                            new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.min.z),
-                            new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.max.z),
-                            new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.min.z),
-                            new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.max.z),
-                        ];
+                            // Get current viewing direction (preserve angle)
+                            const viewDir = perspCamera.getWorldDirection(new THREE.Vector3());
 
-                        // Project all corners onto camera's view frustum
-                        // Find the maximum distance needed to fit all corners
-                        const fov = framedCamera.fov * (Math.PI / 180);
-                        const aspect = framedCamera.aspect;
+                            // Calculate distance to fit sphere in FOV
+                            const fov = perspCamera.fov * (Math.PI / 180);
+                            const distance = radius / Math.sin(fov / 2);
 
-                        let maxDistance = 0;
-                        corners.forEach(corner => {
-                            // Vector from corner to current camera position
-                            const toCamera = corner.clone().sub(currentPos);
-                            // Distance along view direction
-                            const distAlongView = -toCamera.dot(viewDirection);
+                            // Add 10% padding
+                            const finalDistance = distance * 1.1;
 
-                            if (distAlongView > 0) {
-                                // Position of corner relative to camera
-                                const localPos = corner.clone().sub(currentPos);
+                            // Position camera behind center, along current view direction
+                            const framedCamera = perspCamera.clone();
+                            framedCamera.position.copy(
+                                center.clone().sub(viewDir.multiplyScalar(finalDistance))
+                            );
+                            framedCamera.lookAt(center);
+                            framedCamera.updateProjectionMatrix();
 
-                                // Project onto camera's right and up vectors
-                                const right = new THREE.Vector3(1, 0, 0).applyQuaternion(perspCamera.quaternion);
-                                const up = new THREE.Vector3(0, 1, 0).applyQuaternion(perspCamera.quaternion);
+                            console.log('[Snapshot] Simple framing:', {
+                                center,
+                                radius,
+                                distance: finalDistance,
+                                cameraPos: framedCamera.position
+                            });
 
-                                const x = localPos.dot(right);
-                                const y = localPos.dot(up);
-
-                                // Required distance to fit this corner
-                                const tanHalfFov = Math.tan(fov / 2);
-                                const distY = Math.abs(y) / tanHalfFov;
-                                const distX = Math.abs(x) / (tanHalfFov * aspect);
-
-                                maxDistance = Math.max(maxDistance, distAlongView, distY, distX);
-                            }
-                        });
-
-                        // Add 20% padding
-                        const finalDistance = maxDistance * 1.2;
-
-                        // Find where to position camera along view ray to center on bbox
-                        // Position camera such that it's 'finalDistance' away from bbox center
-                        const newPosition = center.clone().sub(viewDirection.clone().multiplyScalar(finalDistance));
-
-                        framedCamera.position.copy(newPosition);
-                        framedCamera.lookAt(center);
-                        framedCamera.updateProjectionMatrix();
-
-                        console.log('[Snapshot] Framed camera (angle-preserving):', {
-                            originalPos: currentPos,
-                            newPosition: framedCamera.position,
-                            distance: finalDistance,
-                            viewDirection,
-                            bboxCenter: center
-                        });
-
-                        captureCamera = framedCamera;
-                    } else {
-                        console.warn('[Snapshot] Bounding box is empty, using current camera');
+                            captureCamera = framedCamera;
+                        } else {
+                            console.warn('[Snapshot] Bounding box empty, using current camera');
+                        }
                     }
-                } else {
-                    console.warn('[Snapshot] Camera is not PerspectiveCamera');
                 }
 
                 // Capture using utility
