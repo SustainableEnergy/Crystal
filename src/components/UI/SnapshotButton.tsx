@@ -6,18 +6,15 @@ interface SnapshotButtonProps {
 
 export const SnapshotButton = ({ isMobile = false }: SnapshotButtonProps) => {
     const [transparentBg, setTransparentBg] = useState(false);
-    const [exportSVG, setExportSVG] = useState(false);
 
     const handleClick = () => {
         const resolution = 2;
-        console.log('[SnapshotButton] Dispatching snapshot-request:', { transparent: transparentBg, resolution, svg: exportSVG });
+        console.log('[SnapshotButton] Dispatching snapshot-request:', { transparent: transparentBg, resolution });
 
-        // Dispatch snapshot event
         window.dispatchEvent(new CustomEvent('snapshot-request', {
             detail: {
                 transparent: transparentBg,
-                resolution: resolution,
-                svg: exportSVG
+                resolution: resolution
             }
         }));
     };
@@ -56,7 +53,7 @@ export const SnapshotButton = ({ isMobile = false }: SnapshotButtonProps) => {
                     }
                 }}
             >
-                <span>{exportSVG ? 'Export SVG' : 'Snapshot'}</span>
+                <span>Snapshot</span>
             </button>
 
             <div style={{
@@ -67,30 +64,6 @@ export const SnapshotButton = ({ isMobile = false }: SnapshotButtonProps) => {
                 fontSize: isMobile ? '11px' : '12px',
                 justifyContent: 'center'
             }}>
-                {/* SVG Export */}
-                <label style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    color: '#e0e0e0',
-                    fontWeight: '500',
-                    cursor: 'pointer',
-                    userSelect: 'none'
-                }}>
-                    <input
-                        type="checkbox"
-                        checked={exportSVG}
-                        onChange={(e) => setExportSVG(e.target.checked)}
-                        style={{
-                            width: '14px',
-                            height: '14px',
-                            cursor: 'pointer'
-                        }}
-                    />
-                    <span>SVG (Vector)</span>
-                </label>
-
-                {/* Transparent Background */}
                 <label style={{
                     display: 'flex',
                     alignItems: 'center',

@@ -136,17 +136,11 @@ function App() {
     };
 
     const handleSnapshotRequest = (e: any) => {
-      const { transparent, resolution = 1, svg = false } = e.detail || {};
+      const { transparent, resolution = 1 } = e.detail || {};
 
-      console.log('[App] Received snapshot-request:', { transparent, resolution, svg });
+      console.log('[App] Received snapshot-request:', { transparent, resolution });
 
-      // SVG export takes priority if selected
-      if (svg) {
-        console.log('[App] Dispatching svg-export event');
-        window.dispatchEvent(new CustomEvent('svg-export', {
-          detail: { currentStructure }
-        }));
-      } else if (resolution > 1) {
+      if (resolution > 1) {
         console.log('[App] Dispatching high-res-snapshot event');
         window.dispatchEvent(new CustomEvent('high-res-snapshot', {
           detail: { transparent, resolution, currentStructure }

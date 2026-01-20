@@ -14,7 +14,6 @@ import { Center, OrbitControls, Environment } from '@react-three/drei';
 import { EffectComposer, SSAO, Bloom } from '@react-three/postprocessing';
 import { exportScene } from '../../core/utils/Exporter';
 import { captureHighRes } from '../../core/utils/SnapshotUtil';
-import { exportSVG } from '../../core/utils/SVGExporter';
 import type { Atom } from '../../core/types';
 
 import { ErrorBoundary } from '../UI/ErrorBoundary';
@@ -416,7 +415,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
                     });
                 }
 
-                // 2. Create Framed Camera (Auto-Fit) - ALWAYS for high-res snapshots
+                // 2. Create Framed Camera - Preserve viewing angle, adjust distance only
                 let captureCamera = camera;
 
                 if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
@@ -424,34 +423,75 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
                     const framedCamera = perspCamera.clone();
 
                     if (!bbox.isEmpty()) {
+                        // Get current viewing direction and camera position
+                        const viewDirection = perspCamera.getWorldDirection(new THREE.Vector3());
+                        const currentPos = perspCamera.position.clone();
+
+                        // Calculate bbox center and size
                         const center = bbox.getCenter(new THREE.Vector3());
                         const size = bbox.getSize(new THREE.Vector3());
-                        const maxDim = Math.max(size.x, size.y, size.z);
 
-                        console.log('[Snapshot] Auto-framing:', {
-                            center,
-                            size,
-                            maxDim,
-                            currentCameraPos: perspCamera.position,
-                            fov: perspCamera.fov
+                        // Get all 8 corners of the bounding box
+                        const corners = [
+                            new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.min.z),
+                            new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.max.z),
+                            new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.min.z),
+                            new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.max.z),
+                            new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.min.z),
+                            new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.max.z),
+                            new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.min.z),
+                            new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.max.z),
+                        ];
+
+                        // Project all corners onto camera's view frustum
+                        // Find the maximum distance needed to fit all corners
+                        const fov = framedCamera.fov * (Math.PI / 180);
+                        const aspect = framedCamera.aspect;
+
+                        let maxDistance = 0;
+                        corners.forEach(corner => {
+                            // Vector from corner to current camera position
+                            const toCamera = corner.clone().sub(currentPos);
+                            // Distance along view direction
+                            const distAlongView = -toCamera.dot(viewDirection);
+
+                            if (distAlongView > 0) {
+                                // Position of corner relative to camera
+                                const localPos = corner.clone().sub(currentPos);
+
+                                // Project onto camera's right and up vectors
+                                const right = new THREE.Vector3(1, 0, 0).applyQuaternion(perspCamera.quaternion);
+                                const up = new THREE.Vector3(0, 1, 0).applyQuaternion(perspCamera.quaternion);
+
+                                const x = localPos.dot(right);
+                                const y = localPos.dot(up);
+
+                                // Required distance to fit this corner
+                                const tanHalfFov = Math.tan(fov / 2);
+                                const distY = Math.abs(y) / tanHalfFov;
+                                const distX = Math.abs(x) / (tanHalfFov * aspect);
+
+                                maxDistance = Math.max(maxDistance, distAlongView, distY, distX);
+                            }
                         });
 
-                        // Calculate distance to fit bounding box in view
-                        const fov = framedCamera.fov * (Math.PI / 180);
-                        const distance = (maxDim / 2) / Math.tan(fov / 2);
+                        // Add 20% padding
+                        const finalDistance = maxDistance * 1.2;
 
-                        // CRITICAL: Get direction and clone before mutation
-                        const direction = perspCamera.getWorldDirection(new THREE.Vector3());
-                        const offset = direction.clone().multiplyScalar(-distance * 1.2);
+                        // Find where to position camera along view ray to center on bbox
+                        // Position camera such that it's 'finalDistance' away from bbox center
+                        const newPosition = center.clone().sub(viewDirection.clone().multiplyScalar(finalDistance));
 
-                        framedCamera.position.copy(center).add(offset);
+                        framedCamera.position.copy(newPosition);
                         framedCamera.lookAt(center);
                         framedCamera.updateProjectionMatrix();
 
-                        console.log('[Snapshot] Framed camera position:', {
+                        console.log('[Snapshot] Framed camera (angle-preserving):', {
+                            originalPos: currentPos,
                             newPosition: framedCamera.position,
-                            distance: distance * 1.2,
-                            direction
+                            distance: finalDistance,
+                            viewDirection,
+                            bboxCenter: center
                         });
 
                         captureCamera = framedCamera;
@@ -488,28 +528,6 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
         window.addEventListener('high-res-snapshot', handleHighResSnapshot);
         return () => window.removeEventListener('high-res-snapshot', handleHighResSnapshot);
     }, [gl, scene, camera, material]);
-
-    // SVG export handler
-    useEffect(() => {
-        const handleSVGExport = () => {
-            try {
-                if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
-                    exportSVG(scene, camera as THREE.PerspectiveCamera, {
-                        width: 1920,
-                        height: 1080,
-                        filename: `cathode-${material}-vector-${Date.now()}.svg`
-                    });
-                } else {
-                    alert('SVG export only supports PerspectiveCamera');
-                }
-            } catch (error) {
-                console.error('SVG export failed:', error);
-            }
-        };
-
-        window.addEventListener('svg-export', handleSVGExport);
-        return () => window.removeEventListener('svg-export', handleSVGExport);
-    }, [scene, camera, material]);
 
     const effects = [];
     if (enableSSAO) effects.push(<SSAO key="ssao" intensity={ssaoIntensity} radius={0.03} luminanceInfluence={0.5} />);
