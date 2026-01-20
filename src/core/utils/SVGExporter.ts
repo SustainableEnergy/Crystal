@@ -24,53 +24,58 @@ export const exportSVG = (
 
     console.log('[SVGExporter] Starting SVG export:', { width, height, filename });
 
-    // Create SVG renderer
-    const svgRenderer = new SVGRenderer();
-    svgRenderer.setSize(width, height);
-    svgRenderer.setQuality('high');
-
-    // Create a temporary container
-    const container = document.createElement('div');
-    container.style.position = 'absolute';
-    container.style.top = '-9999px';
-    container.style.left = '-9999px';
-    document.body.appendChild(container);
-
     try {
-        // Render scene to SVG
-        svgRenderer.render(scene, camera);
+        // Create SVG renderer
+        const svgRenderer = new SVGRenderer();
+        svgRenderer.setSize(width, height);
+        svgRenderer.setQuality('high');
 
-        // Get SVG element
-        const svgElement = container.querySelector('svg');
+        // Create a temporary container
+        const container = document.createElement('div');
+        container.style.position = 'absolute';
+        container.style.top = '-9999px';
+        container.style.left = '-9999px';
+        document.body.appendChild(container);
+        container.appendChild(svgRenderer.domElement);
 
-        if (svgElement) {
-            // Serialize SVG to string
-            const serializer = new XMLSerializer();
-            const svgString = serializer.serializeToString(svgElement);
+        try {
+            // Render scene to SVG
+            console.log('[SVGExporter] Rendering scene...');
+            svgRenderer.render(scene, camera);
 
-            // Create blob and download
-            const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
+            // Get SVG element
+            const svgElement = svgRenderer.domElement;
 
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = filename;
-            link.click();
+            if (svgElement && svgElement.tagName === 'svg') {
+                // Serialize SVG to string
+                const serializer = new XMLSerializer();
+                const svgString = serializer.serializeToString(svgElement);
 
-            // Cleanup
-            URL.revokeObjectURL(url);
+                // Create blob and download
+                const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
 
-            console.log('[SVGExporter] SVG export successful:', filename);
-        } else {
-            throw new Error('SVG element not found');
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                link.click();
+
+                // Cleanup
+                URL.revokeObjectURL(url);
+
+                console.log('[SVGExporter] SVG export successful:', filename);
+                alert('SVG exported! Note: Complex materials are simplified to basic shapes.');
+            } else {
+                throw new Error('SVG element not found or invalid');
+            }
+        } finally {
+            // Always cleanup container
+            document.body.removeChild(container);
         }
     } catch (error) {
         console.error('[SVGExporter] SVG export failed:', error);
-        alert('SVG export failed. This format has limitations with complex materials.');
+        alert('SVG export failed.\n\nSVG format has limitations:\n- Only basic geometry is exported\n- Materials, textures, and effects are not supported\n- Try using PNG snapshot for complex scenes');
         throw error;
-    } finally {
-        // Cleanup
-        document.body.removeChild(container);
     }
 };
 

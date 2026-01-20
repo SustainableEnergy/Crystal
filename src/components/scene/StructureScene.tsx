@@ -409,33 +409,57 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
                 let bbox = new THREE.Box3();
                 if (groupRef.current) {
                     bbox.setFromObject(groupRef.current);
+                    console.log('[Snapshot] Bounding box:', {
+                        min: bbox.min,
+                        max: bbox.max,
+                        isEmpty: bbox.isEmpty()
+                    });
                 }
 
-                // 2. Create Framed Camera (Auto-Fit)
+                // 2. Create Framed Camera (Auto-Fit) - ALWAYS for high-res snapshots
                 let captureCamera = camera;
 
-                if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera && !bbox.isEmpty()) {
+                if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
                     const perspCamera = camera as THREE.PerspectiveCamera;
                     const framedCamera = perspCamera.clone();
 
-                    const center = bbox.getCenter(new THREE.Vector3());
-                    const size = bbox.getSize(new THREE.Vector3());
-                    const maxDim = Math.max(size.x, size.y, size.z);
+                    if (!bbox.isEmpty()) {
+                        const center = bbox.getCenter(new THREE.Vector3());
+                        const size = bbox.getSize(new THREE.Vector3());
+                        const maxDim = Math.max(size.x, size.y, size.z);
 
-                    // Calculate distance needed to fit the bounding box
-                    const fov = framedCamera.fov * (Math.PI / 180);
-                    const distance = (maxDim / 2) / Math.tan(fov / 2);
+                        console.log('[Snapshot] Auto-framing:', {
+                            center,
+                            size,
+                            maxDim,
+                            currentCameraPos: perspCamera.position,
+                            fov: perspCamera.fov
+                        });
 
-                    // CRITICAL FIX: Clone direction vector before multiplying
-                    // getWorldDirection returns a new vector, but multiplyScalar mutates it
-                    const direction = perspCamera.getWorldDirection(new THREE.Vector3());
-                    const offset = direction.clone().multiplyScalar(-distance * 1.2);
+                        // Calculate distance to fit bounding box in view
+                        const fov = framedCamera.fov * (Math.PI / 180);
+                        const distance = (maxDim / 2) / Math.tan(fov / 2);
 
-                    framedCamera.position.copy(center).add(offset);
-                    framedCamera.lookAt(center);
-                    framedCamera.updateProjectionMatrix();
+                        // CRITICAL: Get direction and clone before mutation
+                        const direction = perspCamera.getWorldDirection(new THREE.Vector3());
+                        const offset = direction.clone().multiplyScalar(-distance * 1.2);
 
-                    captureCamera = framedCamera;
+                        framedCamera.position.copy(center).add(offset);
+                        framedCamera.lookAt(center);
+                        framedCamera.updateProjectionMatrix();
+
+                        console.log('[Snapshot] Framed camera position:', {
+                            newPosition: framedCamera.position,
+                            distance: distance * 1.2,
+                            direction
+                        });
+
+                        captureCamera = framedCamera;
+                    } else {
+                        console.warn('[Snapshot] Bounding box is empty, using current camera');
+                    }
+                } else {
+                    console.warn('[Snapshot] Camera is not PerspectiveCamera');
                 }
 
                 // Capture using utility
