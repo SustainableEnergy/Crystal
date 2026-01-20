@@ -102,12 +102,17 @@ export const captureHighRes = (
     const originalBackground = scene.background;
     const originalRenderTarget = gl.getRenderTarget();
     const originalPixelRatio = gl.getPixelRatio();
+    const originalScissorTest = gl.getScissorTest();
 
     try {
         // Configure for snapshot
         if (transparent) {
             scene.background = null;
         }
+
+        // Disable scissor test to ensure full render target is used
+        // Otherwise, rendering might be clipped to the current window size (appearing as bottom-left only)
+        gl.setScissorTest(false);
 
         // Render to off-screen target
         gl.setRenderTarget(renderTarget);
@@ -169,6 +174,7 @@ export const captureHighRes = (
         scene.background = originalBackground;
         gl.setRenderTarget(originalRenderTarget);
         gl.setPixelRatio(originalPixelRatio);
+        gl.setScissorTest(originalScissorTest);
         renderTarget.dispose();
 
         console.log('[SnapshotUtil] Restored original state and cleaned up');
