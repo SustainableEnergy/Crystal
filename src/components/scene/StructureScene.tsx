@@ -404,45 +404,80 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
                     scene.environment = null;
                 }
 
-                // 1. Calculate Bounding Sphere (simpler and more reliable)
+                // 1. Calculate proper framing with aspect ratio consideration
                 let captureCamera = camera;
 
                 if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
                     const perspCamera = camera as THREE.PerspectiveCamera;
 
                     if (groupRef.current) {
-                        // Calculate bounding box first
                         const bbox = new THREE.Box3().setFromObject(groupRef.current);
 
                         if (!bbox.isEmpty()) {
-                            // Get bounding sphere from box
                             const center = bbox.getCenter(new THREE.Vector3());
                             const size = bbox.getSize(new THREE.Vector3());
-                            const radius = size.length() / 2; // Diagonal / 2 = sphere radius
 
                             // Get current viewing direction (preserve angle)
                             const viewDir = perspCamera.getWorldDirection(new THREE.Vector3());
 
-                            // Calculate distance to fit sphere in FOV
-                            const fov = perspCamera.fov * (Math.PI / 180);
-                            const distance = radius / Math.sin(fov / 2);
+                            // Get camera's up and right vectors to project bbox size
+                            const up = new THREE.Vector3(0, 1, 0).applyQuaternion(perspCamera.quaternion);
+                            const right = new THREE.Vector3(1, 0, 0).applyQuaternion(perspCamera.quaternion);
 
-                            // Add 10% padding
-                            const finalDistance = distance * 1.1;
+                            // Project bbox onto screen plane (perpendicular to view direction)
+                            // This gives us the apparent width and height of the bbox from current angle
+                            const corners = [
+                                new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.min.z),
+                                new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.max.z),
+                                new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.min.z),
+                                new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.max.z),
+                                new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.min.z),
+                                new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.max.z),
+                                new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.min.z),
+                                new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.max.z),
+                            ];
 
-                            // Position camera behind center, along current view direction
+                            let minX = Infinity, maxX = -Infinity;
+                            let minY = Infinity, maxY = -Infinity;
+
+                            corners.forEach(corner => {
+                                const toCorner = corner.clone().sub(center);
+                                const x = toCorner.dot(right);
+                                const y = toCorner.dot(up);
+                                minX = Math.min(minX, x);
+                                maxX = Math.max(maxX, x);
+                                minY = Math.min(minY, y);
+                                maxY = Math.max(maxY, y);
+                            });
+
+                            const projectedWidth = maxX - minX;
+                            const projectedHeight = maxY - minY;
+
+                            // Calculate required distance for vertical and horizontal fit
+                            const vFov = perspCamera.fov * (Math.PI / 180);
+                            const hFov = 2 * Math.atan(perspCamera.aspect * Math.tan(vFov / 2));
+
+                            const distForHeight = (projectedHeight / 2) / Math.tan(vFov / 2);
+                            const distForWidth = (projectedWidth / 2) / Math.tan(hFov / 2);
+
+                            // Use the larger distance (more constraining) + 15% padding
+                            const distance = Math.max(distForHeight, distForWidth) * 1.15;
+
+                            // Position camera
                             const framedCamera = perspCamera.clone();
                             framedCamera.position.copy(
-                                center.clone().sub(viewDir.multiplyScalar(finalDistance))
+                                center.clone().sub(viewDir.clone().multiplyScalar(distance))
                             );
                             framedCamera.lookAt(center);
                             framedCamera.updateProjectionMatrix();
 
-                            console.log('[Snapshot] Simple framing:', {
+                            console.log('[Snapshot] Aspect-aware framing:', {
                                 center,
-                                radius,
-                                distance: finalDistance,
-                                cameraPos: framedCamera.position
+                                projectedWidth,
+                                projectedHeight,
+                                distForWidth,
+                                distForHeight,
+                                finalDistance: distance
                             });
 
                             captureCamera = framedCamera;
