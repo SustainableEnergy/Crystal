@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useMemo, useRef, useLayoutEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Atom } from '../../core/types';

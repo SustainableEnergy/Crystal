@@ -6,12 +6,12 @@ interface SnapshotButtonProps {
 
 export const SnapshotButton = ({ isMobile = false }: SnapshotButtonProps) => {
     const [transparentBg, setTransparentBg] = useState(false);
-    const [resolution, setResolution] = useState(1);
 
     const handleClick = () => {
+        const resolution = 2; // Fixed to 2x as requested
         console.log('[SnapshotButton] Dispatching snapshot-request:', { transparent: transparentBg, resolution: resolution });
 
-        // Dispatch snapshot event with options
+        // Dispatch snapshot event
         window.dispatchEvent(new CustomEvent('snapshot-request', {
             detail: {
                 transparent: transparentBg,
@@ -54,7 +54,7 @@ export const SnapshotButton = ({ isMobile = false }: SnapshotButtonProps) => {
                     }
                 }}
             >
-                <span>📸 Snapshot</span>
+                <span>Snapshot</span>
             </button>
 
             <div style={{
@@ -62,36 +62,9 @@ export const SnapshotButton = ({ isMobile = false }: SnapshotButtonProps) => {
                 flexWrap: 'wrap',
                 gap: '8px',
                 alignItems: 'center',
-                fontSize: isMobile ? '11px' : '12px'
+                fontSize: isMobile ? '11px' : '12px',
+                justifyContent: 'center'
             }}>
-                {/* Resolution Selector */}
-                <label style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    color: '#e0e0e0',
-                    fontWeight: '500'
-                }}>
-                    <span>해상도:</span>
-                    <select
-                        value={resolution}
-                        onChange={(e) => setResolution(Number(e.target.value))}
-                        style={{
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            border: '1px solid #444',
-                            background: '#222',
-                            color: 'white',
-                            fontSize: isMobile ? '11px' : '12px',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        <option value={1}>1x (기본)</option>
-                        <option value={2}>2x (고화질)</option>
-                        <option value={4}>4x (초고화질)</option>
-                    </select>
-                </label>
-
                 {/* Transparent Background */}
                 <label style={{
                     display: 'flex',

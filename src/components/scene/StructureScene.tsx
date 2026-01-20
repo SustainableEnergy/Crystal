@@ -389,7 +389,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
 
     useEffect(() => {
         const handleHighResSnapshot = (e: any) => {
-            const { transparent, resolution, autoFrame, currentStructure } = e.detail || {};
+            const { transparent, resolution = 2 } = e.detail || {}; // Default to 2x
 
             try {
                 // Save original background
@@ -400,25 +400,65 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
                     scene.background = null;
                 }
 
+                // 1. Calculate Bounding Box of all atoms
+                let bbox = new THREE.Box3();
+                // We'll calculate it from the Group ref to be safe and include everything (Polyhedra, Bonds etc)
+                if (groupRef.current) {
+                    // Create a bounding box from the object
+                    bbox.setFromObject(groupRef.current);
+                }
+
+                // 2. Create Framed Camera (Auto-Fit)
+                // We clone the current camera to preserve view direction but adjust zoom/dist
+                let captureCamera = camera;
+
+                if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera && !bbox.isEmpty()) {
+                    // Safe cast
+                    const perspCamera = camera as THREE.PerspectiveCamera;
+                    const framedCamera = perspCamera.clone();
+
+                    const center = bbox.getCenter(new THREE.Vector3());
+                    const size = bbox.getSize(new THREE.Vector3());
+                    const maxDim = Math.max(size.x, size.y, size.z);
+
+                    // Fit-to-screen logic
+                    const fov = framedCamera.fov * (Math.PI / 180);
+                    const distance = Math.abs(maxDim / (2 * Math.tan(fov / 2)));
+
+                    // Move camera back along its view direction
+                    const direction = new THREE.Vector3();
+                    framedCamera.getWorldDirection(direction);
+                    framedCamera.position.copy(center).add(direction.multiplyScalar(-distance * 1.2)); // 1.2 padding
+                    framedCamera.lookAt(center);
+                    framedCamera.updateProjectionMatrix();
+
+                    captureCamera = framedCamera;
+                }
+
                 // Capture using utility
-                captureHighRes(gl, scene, camera as THREE.PerspectiveCamera, {
-                    resolution: resolution || 1,
-                    transparent: transparent || false,
-                    autoFrame: autoFrame || false,
-                    filename: `cathode-${currentStructure}-${resolution}x-${Date.now()}.png`
-                });
+                if ((captureCamera as THREE.PerspectiveCamera).isPerspectiveCamera) {
+                    captureHighRes(gl, scene, captureCamera as THREE.PerspectiveCamera, {
+                        resolution: resolution,
+                        transparent: transparent || false,
+                        autoFrame: true,
+                        filename: `cathode-${material}-${resolution}x-${Date.now()}.png`
+                    });
+                } else {
+                    console.warn('Snapshot only supports PerspectiveCamera');
+                    alert('Snapshot failed: Camera type not supported.');
+                }
 
                 // Restore background
                 scene.background = originalBackground;
             } catch (error) {
                 console.error('High-res snapshot failed:', error);
-                alert('스냅샷 생성 실패. 콘솔을 확인하세요.');
+                alert('Snapshot failed. Check console.');
             }
         };
 
         window.addEventListener('high-res-snapshot', handleHighResSnapshot);
         return () => window.removeEventListener('high-res-snapshot', handleHighResSnapshot);
-    }, [gl, scene, camera]);
+    }, [gl, scene, camera, material]); // Added material dependency for filename consistency
 
     const effects = [];
     if (enableSSAO) effects.push(<SSAO key="ssao" intensity={ssaoIntensity} radius={0.03} luminanceInfluence={0.5} />);
