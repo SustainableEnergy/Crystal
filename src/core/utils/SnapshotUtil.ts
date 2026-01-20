@@ -103,6 +103,8 @@ export const captureHighRes = (
     const originalRenderTarget = gl.getRenderTarget();
     const originalPixelRatio = gl.getPixelRatio();
     const originalScissorTest = gl.getScissorTest();
+    const originalViewport = new THREE.Vector4();
+    gl.getViewport(originalViewport);
 
     try {
         // Configure for snapshot
@@ -117,9 +119,14 @@ export const captureHighRes = (
         // Render to off-screen target
         gl.setRenderTarget(renderTarget);
         gl.setPixelRatio(1); // Ensure 1:1 pixel mapping
+
+        // Explicitly set viewport to match render target size
+        // This is critical - without this, the viewport stays at the original screen size
+        gl.setViewport(0, 0, targetWidth, targetHeight);
+
         gl.render(scene, camera);
 
-        console.log('[SnapshotUtil] Rendered to off-screen target');
+        console.log('[SnapshotUtil] Rendered to off-screen target at', targetWidth, 'x', targetHeight);
 
         // Read pixels from render target
         const pixels = new Uint8Array(targetWidth * targetHeight * 4);
@@ -175,6 +182,7 @@ export const captureHighRes = (
         gl.setRenderTarget(originalRenderTarget);
         gl.setPixelRatio(originalPixelRatio);
         gl.setScissorTest(originalScissorTest);
+        gl.setViewport(originalViewport.x, originalViewport.y, originalViewport.z, originalViewport.w);
         renderTarget.dispose();
 
         console.log('[SnapshotUtil] Restored original state and cleaned up');
