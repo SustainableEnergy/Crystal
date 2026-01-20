@@ -409,11 +409,9 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
                 }
 
                 // 2. Create Framed Camera (Auto-Fit)
-                // We clone the current camera to preserve view direction but adjust zoom/dist
                 let captureCamera = camera;
 
                 if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera && !bbox.isEmpty()) {
-                    // Safe cast
                     const perspCamera = camera as THREE.PerspectiveCamera;
                     const framedCamera = perspCamera.clone();
 
@@ -421,14 +419,18 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
                     const size = bbox.getSize(new THREE.Vector3());
                     const maxDim = Math.max(size.x, size.y, size.z);
 
-                    // Fit-to-screen logic
+                    // Calculate distance needed to fit the bounding box
                     const fov = framedCamera.fov * (Math.PI / 180);
-                    const distance = Math.abs(maxDim / (2 * Math.tan(fov / 2)));
+                    const distance = (maxDim / 2) / Math.tan(fov / 2);
 
-                    // Move camera back along its view direction
-                    const direction = new THREE.Vector3();
-                    framedCamera.getWorldDirection(direction);
-                    framedCamera.position.copy(center).add(direction.multiplyScalar(-distance * 1.2)); // 1.2 padding
+                    // Get current camera's direction (where it's looking)
+                    const currentDirection = new THREE.Vector3();
+                    perspCamera.getWorldDirection(currentDirection);
+
+                    // Position camera behind the center, looking at it
+                    // Add 20% padding for better framing
+                    const offset = currentDirection.multiplyScalar(-distance * 1.2);
+                    framedCamera.position.copy(center).add(offset);
                     framedCamera.lookAt(center);
                     framedCamera.updateProjectionMatrix();
 

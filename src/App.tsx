@@ -223,7 +223,7 @@ function App() {
         />
       )}
 
-      {/* Leva Controls -Responsive */}
+      {/* Leva Controls - Responsive */}
       <div style={{
         position: 'fixed',
         top: isMobile ? (controlsOpen ? '56px' : '-1000px') : '0',
@@ -232,8 +232,9 @@ function App() {
         width: isMobile ? '100%' : 'auto',
         zIndex: isMobile ? 998 : 999,
         transition: 'top 0.3s ease',
-        maxHeight: isMobile ? 'calc(100vh - 56px)' : '95vh',
-        overflowY: 'auto'
+        maxHeight: isMobile ? 'calc(100vh - 126px)' : '95vh', // 56px header + 70px bottom bar
+        overflowY: 'auto',
+        paddingBottom: isMobile ? '20px' : '0'
       }}>
         <Leva
           flat
