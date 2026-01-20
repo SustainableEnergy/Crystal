@@ -14,6 +14,7 @@ import { Center, OrbitControls, Environment } from '@react-three/drei';
 import { EffectComposer, SSAO, Bloom } from '@react-three/postprocessing';
 import { exportScene } from '../../core/utils/Exporter';
 import { captureHighRes } from '../../core/utils/SnapshotUtil';
+import { exportSVG } from '../../core/utils/SVGExporter';
 import type { Atom } from '../../core/types';
 
 import { ErrorBoundary } from '../UI/ErrorBoundary';
@@ -389,22 +390,24 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
 
     useEffect(() => {
         const handleHighResSnapshot = (e: any) => {
-            const { transparent, resolution = 2 } = e.detail || {}; // Default to 2x
+            const { transparent, resolution = 2 } = e.detail || {};
 
             try {
-                // Save original background
+                // Store ALL background-related elements
                 const originalBackground = scene.background;
+                const originalFog = scene.fog;
+                const originalEnvironment = scene.environment;
 
                 // Apply transparent background if requested
                 if (transparent) {
                     scene.background = null;
+                    scene.fog = null;
+                    scene.environment = null;
                 }
 
-                // 1. Calculate Bounding Box of all atoms
+                // 1. Calculate Bounding Box
                 let bbox = new THREE.Box3();
-                // We'll calculate it from the Group ref to be safe and include everything (Polyhedra, Bonds etc)
                 if (groupRef.current) {
-                    // Create a bounding box from the object
                     bbox.setFromObject(groupRef.current);
                 }
 
@@ -423,13 +426,11 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
                     const fov = framedCamera.fov * (Math.PI / 180);
                     const distance = (maxDim / 2) / Math.tan(fov / 2);
 
-                    // Get current camera's direction (where it's looking)
-                    const currentDirection = new THREE.Vector3();
-                    perspCamera.getWorldDirection(currentDirection);
+                    // CRITICAL FIX: Clone direction vector before multiplying
+                    // getWorldDirection returns a new vector, but multiplyScalar mutates it
+                    const direction = perspCamera.getWorldDirection(new THREE.Vector3());
+                    const offset = direction.clone().multiplyScalar(-distance * 1.2);
 
-                    // Position camera behind the center, looking at it
-                    // Add 20% padding for better framing
-                    const offset = currentDirection.multiplyScalar(-distance * 1.2);
                     framedCamera.position.copy(center).add(offset);
                     framedCamera.lookAt(center);
                     framedCamera.updateProjectionMatrix();
@@ -450,8 +451,10 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
                     alert('Snapshot failed: Camera type not supported.');
                 }
 
-                // Restore background
+                // Restore ALL original states
                 scene.background = originalBackground;
+                scene.fog = originalFog;
+                scene.environment = originalEnvironment;
             } catch (error) {
                 console.error('High-res snapshot failed:', error);
                 alert('Snapshot failed. Check console.');
@@ -460,7 +463,29 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
 
         window.addEventListener('high-res-snapshot', handleHighResSnapshot);
         return () => window.removeEventListener('high-res-snapshot', handleHighResSnapshot);
-    }, [gl, scene, camera, material]); // Added material dependency for filename consistency
+    }, [gl, scene, camera, material]);
+
+    // SVG export handler
+    useEffect(() => {
+        const handleSVGExport = () => {
+            try {
+                if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
+                    exportSVG(scene, camera as THREE.PerspectiveCamera, {
+                        width: 1920,
+                        height: 1080,
+                        filename: `cathode-${material}-vector-${Date.now()}.svg`
+                    });
+                } else {
+                    alert('SVG export only supports PerspectiveCamera');
+                }
+            } catch (error) {
+                console.error('SVG export failed:', error);
+            }
+        };
+
+        window.addEventListener('svg-export', handleSVGExport);
+        return () => window.removeEventListener('svg-export', handleSVGExport);
+    }, [scene, camera, material]);
 
     const effects = [];
     if (enableSSAO) effects.push(<SSAO key="ssao" intensity={ssaoIntensity} radius={0.03} luminanceInfluence={0.5} />);

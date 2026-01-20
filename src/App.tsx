@@ -136,14 +136,18 @@ function App() {
     };
 
     const handleSnapshotRequest = (e: any) => {
-      const { transparent, resolution = 1 } = e.detail || {};
+      const { transparent, resolution = 1, svg = false } = e.detail || {};
 
-      console.log('[App] Received snapshot-request:', { transparent, resolution });
+      console.log('[App] Received snapshot-request:', { transparent, resolution, svg });
 
-      // If high-resolution is enabled, use enhanced snapshot
-      if (resolution > 1) {
+      // SVG export takes priority if selected
+      if (svg) {
+        console.log('[App] Dispatching svg-export event');
+        window.dispatchEvent(new CustomEvent('svg-export', {
+          detail: { currentStructure }
+        }));
+      } else if (resolution > 1) {
         console.log('[App] Dispatching high-res-snapshot event');
-        // Dispatch event to StructureScene to handle with useThree access
         window.dispatchEvent(new CustomEvent('high-res-snapshot', {
           detail: { transparent, resolution, currentStructure }
         }));
