@@ -404,86 +404,79 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
                     scene.environment = null;
                 }
 
-                // 1. Calculate proper framing with aspect ratio consideration
+                // 1. Calculate perspective-accurate framing
                 let captureCamera = camera;
 
-                if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
+                if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera && groupRef.current) {
                     const perspCamera = camera as THREE.PerspectiveCamera;
+                    const bbox = new THREE.Box3().setFromObject(groupRef.current);
 
-                    if (groupRef.current) {
-                        const bbox = new THREE.Box3().setFromObject(groupRef.current);
+                    if (!bbox.isEmpty()) {
+                        const framedCamera = perspCamera.clone();
+                        const viewDir = perspCamera.getWorldDirection(new THREE.Vector3()).normalize();
+                        const up = new THREE.Vector3(0, 1, 0).applyQuaternion(perspCamera.quaternion).normalize();
+                        const right = new THREE.Vector3().crossVectors(viewDir, up).normalize();
 
-                        if (!bbox.isEmpty()) {
-                            const center = bbox.getCenter(new THREE.Vector3());
-                            const size = bbox.getSize(new THREE.Vector3());
+                        // Get all 8 corners of the bbox
+                        const corners = [
+                            new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.min.z),
+                            new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.max.z),
+                            new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.min.z),
+                            new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.max.z),
+                            new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.min.z),
+                            new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.max.z),
+                            new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.min.z),
+                            new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.max.z),
+                        ];
 
-                            // Get current viewing direction (preserve angle)
-                            const viewDir = perspCamera.getWorldDirection(new THREE.Vector3());
+                        const center = bbox.getCenter(new THREE.Vector3());
 
-                            // Get camera's up and right vectors to project bbox size
-                            const up = new THREE.Vector3(0, 1, 0).applyQuaternion(perspCamera.quaternion);
-                            const right = new THREE.Vector3(1, 0, 0).applyQuaternion(perspCamera.quaternion);
+                        // Calculate visual extents in camera local space
+                        let minX = Infinity, maxX = -Infinity;
+                        let minY = Infinity, maxY = -Infinity;
 
-                            // Project bbox onto screen plane (perpendicular to view direction)
-                            // This gives us the apparent width and height of the bbox from current angle
-                            const corners = [
-                                new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.min.z),
-                                new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.max.z),
-                                new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.min.z),
-                                new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.max.z),
-                                new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.min.z),
-                                new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.max.z),
-                                new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.min.z),
-                                new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.max.z),
-                            ];
+                        corners.forEach(corner => {
+                            const rel = corner.clone().sub(center);
+                            const x = rel.dot(right);
+                            const y = rel.dot(up);
+                            minX = Math.min(minX, x);
+                            maxX = Math.max(maxX, x);
+                            minY = Math.min(minY, y);
+                            maxY = Math.max(maxY, y);
+                        });
 
-                            let minX = Infinity, maxX = -Infinity;
-                            let minY = Infinity, maxY = -Infinity;
+                        // Visual center (midpoint of projected extents)
+                        const visualCenter = center.clone()
+                            .add(right.clone().multiplyScalar((minX + maxX) / 2))
+                            .add(up.clone().multiplyScalar((minY + maxY) / 2));
 
-                            corners.forEach(corner => {
-                                const toCorner = corner.clone().sub(center);
-                                const x = toCorner.dot(right);
-                                const y = toCorner.dot(up);
-                                minX = Math.min(minX, x);
-                                maxX = Math.max(maxX, x);
-                                minY = Math.min(minY, y);
-                                maxY = Math.max(maxY, y);
-                            });
+                        const projectedWidth = maxX - minX;
+                        const projectedHeight = maxY - minY;
 
-                            const projectedWidth = maxX - minX;
-                            const projectedHeight = maxY - minY;
+                        // FOV calculations
+                        const vFovRad = perspCamera.fov * (Math.PI / 180);
+                        const hFovRad = 2 * Math.atan(Math.tan(vFovRad / 2) * perspCamera.aspect);
 
-                            // Calculate required distance for vertical and horizontal fit
-                            const vFov = perspCamera.fov * (Math.PI / 180);
-                            const hFov = 2 * Math.atan(perspCamera.aspect * Math.tan(vFov / 2));
+                        // Find distance required to fit the width and height
+                        // We use a small padding (e.g., 5%) for a "maximal" fit
+                        const padding = 1.05;
+                        const distW = (projectedWidth / 2) / Math.tan(hFovRad / 2);
+                        const distH = (projectedHeight / 2) / Math.tan(vFovRad / 2);
+                        const distance = Math.max(distW, distH) * padding;
 
-                            const distForHeight = (projectedHeight / 2) / Math.tan(vFov / 2);
-                            const distForWidth = (projectedWidth / 2) / Math.tan(hFov / 2);
+                        // Position camera along view direction looking at visual center
+                        framedCamera.position.copy(visualCenter).add(viewDir.clone().multiplyScalar(-distance));
+                        framedCamera.lookAt(visualCenter);
+                        framedCamera.updateProjectionMatrix();
 
-                            // Use the larger distance (more constraining) + 15% padding
-                            const distance = Math.max(distForHeight, distForWidth) * 1.15;
+                        console.log('[Snapshot] Optimized Framing:', {
+                            projectedWidth,
+                            projectedHeight,
+                            finalDistance: distance,
+                            visualCenter
+                        });
 
-                            // Position camera
-                            const framedCamera = perspCamera.clone();
-                            framedCamera.position.copy(
-                                center.clone().sub(viewDir.clone().multiplyScalar(distance))
-                            );
-                            framedCamera.lookAt(center);
-                            framedCamera.updateProjectionMatrix();
-
-                            console.log('[Snapshot] Aspect-aware framing:', {
-                                center,
-                                projectedWidth,
-                                projectedHeight,
-                                distForWidth,
-                                distForHeight,
-                                finalDistance: distance
-                            });
-
-                            captureCamera = framedCamera;
-                        } else {
-                            console.warn('[Snapshot] Bounding box empty, using current camera');
-                        }
+                        captureCamera = framedCamera;
                     }
                 }
 
