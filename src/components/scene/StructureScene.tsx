@@ -404,88 +404,13 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
                     scene.environment = null;
                 }
 
-                // 1. Calculate perspective-accurate framing
-                let captureCamera = camera;
-
-                if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera && groupRef.current) {
-                    const perspCamera = camera as THREE.PerspectiveCamera;
-                    const bbox = new THREE.Box3().setFromObject(groupRef.current);
-
-                    if (!bbox.isEmpty()) {
-                        const framedCamera = perspCamera.clone();
-                        const viewDir = perspCamera.getWorldDirection(new THREE.Vector3()).normalize();
-                        const up = new THREE.Vector3(0, 1, 0).applyQuaternion(perspCamera.quaternion).normalize();
-                        const right = new THREE.Vector3().crossVectors(viewDir, up).normalize();
-
-                        // Get all 8 corners of the bbox
-                        const corners = [
-                            new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.min.z),
-                            new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.max.z),
-                            new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.min.z),
-                            new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.max.z),
-                            new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.min.z),
-                            new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.max.z),
-                            new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.min.z),
-                            new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.max.z),
-                        ];
-
-                        const center = bbox.getCenter(new THREE.Vector3());
-
-                        // Calculate visual extents in camera local space
-                        let minX = Infinity, maxX = -Infinity;
-                        let minY = Infinity, maxY = -Infinity;
-
-                        corners.forEach(corner => {
-                            const rel = corner.clone().sub(center);
-                            const x = rel.dot(right);
-                            const y = rel.dot(up);
-                            minX = Math.min(minX, x);
-                            maxX = Math.max(maxX, x);
-                            minY = Math.min(minY, y);
-                            maxY = Math.max(maxY, y);
-                        });
-
-                        // Visual center (midpoint of projected extents)
-                        const visualCenter = center.clone()
-                            .add(right.clone().multiplyScalar((minX + maxX) / 2))
-                            .add(up.clone().multiplyScalar((minY + maxY) / 2));
-
-                        const projectedWidth = maxX - minX;
-                        const projectedHeight = maxY - minY;
-
-                        // FOV calculations
-                        const vFovRad = perspCamera.fov * (Math.PI / 180);
-                        const hFovRad = 2 * Math.atan(Math.tan(vFovRad / 2) * perspCamera.aspect);
-
-                        // Find distance required to fit the width and height
-                        // We use a small padding (e.g., 5%) for a "maximal" fit
-                        const padding = 1.05;
-                        const distW = (projectedWidth / 2) / Math.tan(hFovRad / 2);
-                        const distH = (projectedHeight / 2) / Math.tan(vFovRad / 2);
-                        const distance = Math.max(distW, distH) * padding;
-
-                        // Position camera along view direction looking at visual center
-                        framedCamera.position.copy(visualCenter).add(viewDir.clone().multiplyScalar(-distance));
-                        framedCamera.lookAt(visualCenter);
-                        framedCamera.updateProjectionMatrix();
-
-                        console.log('[Snapshot] Optimized Framing:', {
-                            projectedWidth,
-                            projectedHeight,
-                            finalDistance: distance,
-                            visualCenter
-                        });
-
-                        captureCamera = framedCamera;
-                    }
-                }
-
-                // Capture using utility
-                if ((captureCamera as THREE.PerspectiveCamera).isPerspectiveCamera) {
-                    captureHighRes(gl, scene, captureCamera as THREE.PerspectiveCamera, {
+                // Capture using utility - WYSIWYG (What You See Is What You Get)
+                // We use the current camera exactly as is, to preserve the user's specific angle and composition.
+                if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
+                    captureHighRes(gl, scene, camera as THREE.PerspectiveCamera, {
                         resolution: resolution,
                         transparent: transparent || false,
-                        autoFrame: true,
+                        autoFrame: false, // Disable auto-framing
                         filename: `cathode-${material}-${resolution}x-${Date.now()}.png`
                     });
                 } else {
