@@ -31,7 +31,7 @@ export const Legend = ({ material, isMobile = false, customColors }: LegendProps
     return (
         <div style={{
             position: 'absolute',
-            bottom: isMobile ? '80px' : '30px', // Adjusted for new footer height
+            bottom: isMobile ? '100px' : '30px', // Increased for multi-line legend on mobile
             left: '50%',
             transform: 'translateX(-50%)',
             backgroundColor: 'rgba(0, 0, 0, 0.6)',

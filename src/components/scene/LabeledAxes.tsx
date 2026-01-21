@@ -26,8 +26,8 @@ export const LabeledAxes = ({ size = 5 }: LabeledAxesProps) => {
                 position={[0, size + 0.5, 0]}
                 fontSize={0.5}
                 color="#00ff00"
-                anchorX="center"
-                anchorY="bottom"
+                anchorX="left"
+                anchorY="middle"
             >
                 Y
             </Text>
@@ -37,7 +37,7 @@ export const LabeledAxes = ({ size = 5 }: LabeledAxesProps) => {
                 position={[0, 0, size + 0.5]}
                 fontSize={0.5}
                 color="#0000ff"
-                anchorX="center"
+                anchorX="left"
                 anchorY="middle"
             >
                 Z
