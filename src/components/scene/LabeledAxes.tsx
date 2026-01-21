@@ -1,47 +1,37 @@
-import { Text } from '@react-three/drei';
+import { Html } from '@react-three/drei';
 
 interface LabeledAxesProps {
     size?: number;
 }
 
 export const LabeledAxes = ({ size = 5 }: LabeledAxesProps) => {
+    const labelStyle = {
+        fontSize: '14px',
+        fontWeight: 'bold' as const,
+        fontFamily: 'monospace',
+        userSelect: 'none' as const,
+        pointerEvents: 'none' as const
+    };
+
     return (
         <group>
             {/* Axes lines */}
             <axesHelper args={[size]} />
 
             {/* X axis label - Red */}
-            <Text
-                position={[size + 0.5, 0, 0]}
-                fontSize={0.5}
-                color="#ff0000"
-                anchorX="left"
-                anchorY="middle"
-            >
-                X
-            </Text>
+            <Html position={[size + 0.3, 0, 0]} center>
+                <span style={{ ...labelStyle, color: '#ff4444' }}>X</span>
+            </Html>
 
             {/* Y axis label - Green */}
-            <Text
-                position={[0, size + 0.5, 0]}
-                fontSize={0.5}
-                color="#00ff00"
-                anchorX="left"
-                anchorY="middle"
-            >
-                Y
-            </Text>
+            <Html position={[0, size + 0.3, 0]} center>
+                <span style={{ ...labelStyle, color: '#44ff44' }}>Y</span>
+            </Html>
 
             {/* Z axis label - Blue */}
-            <Text
-                position={[0, 0, size + 0.5]}
-                fontSize={0.5}
-                color="#0000ff"
-                anchorX="left"
-                anchorY="middle"
-            >
-                Z
-            </Text>
+            <Html position={[0, 0, size + 0.3]} center>
+                <span style={{ ...labelStyle, color: '#4444ff' }}>Z</span>
+            </Html>
         </group>
     );
 };

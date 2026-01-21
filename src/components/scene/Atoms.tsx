@@ -10,10 +10,9 @@ interface AtomProps {
   atoms: Atom[];
   clippingPlanes?: THREE.Plane[];
   radiusScale?: number;
-  // Per-element controls: { Li: { scale: 1, visible: true, color: '#...' }, ... }
   elementSettings?: { [key: string]: { scale: number; visible: boolean; color: string } };
   materialProps?: any;
-  liAnimating?: boolean; // When true, Li atoms are hidden (handled by LiAnimation)
+  liAnimating?: boolean; // When true, Li atoms are rendered by LiAnimation instead
 }
 
 const defaultMaterialProps = {
@@ -45,7 +44,6 @@ export const Atoms = ({
     const ethereal: { [element: string]: Atom[] } = {};
 
     atoms.forEach(atom => {
-      // Check if this element should be ethereal
       if (ETHEREAL_TARGETS.includes(atom.element)) {
         if (!ethereal[atom.element]) ethereal[atom.element] = [];
         ethereal[atom.element].push(atom);
@@ -59,13 +57,13 @@ export const Atoms = ({
 
   return (
     <group>
-      {/* Standard Atoms (Instanced Mesh) */}
+      {/* Standard Atoms (Instanced Spheres) */}
       {Object.entries(groups).map(([element, elementAtoms]) => {
         const settings = elementSettings[element] || { scale: 1.0, visible: true, color: ELEMENT_COLORS[element] };
         if (settings.visible === false) return null;
 
-        const finalRadius = (ELEMENT_RADII[element] || 0.5) * radiusScale * settings.scale;
         const color = settings.color || ELEMENT_COLORS[element] || '#ccc';
+        const finalRadius = (ELEMENT_RADII[element] || 0.5) * radiusScale * settings.scale;
 
         return (
           <Instances
@@ -94,32 +92,30 @@ export const Atoms = ({
         const settings = elementSettings[element] || { scale: 1.0, visible: true, color: ELEMENT_COLORS[element] };
         if (settings.visible === false) return null;
 
-        // Skip Li atoms when animation is active (they are rendered by LiAnimation)
+        // Skip Li when animation is active (LiAnimation handles all Li rendering)
         if (element === 'Li' && liAnimating) return null;
 
         const color = settings.color || ELEMENT_COLORS[element] || '#ccc';
 
-        // If enabled, render optimized cloud
         if (enableEthereal) {
           const finalRadius = (ELEMENT_RADII[element] || 0.5) * radiusScale * settings.scale;
-          // Generate core color (Brighter version of main color)
           const c = new THREE.Color(color);
-          const coreC = c.clone().lerp(new THREE.Color('#ffffff'), 0.7).getStyle(); // 70% white, 30% color
+          const coreC = c.clone().lerp(new THREE.Color('#ffffff'), 0.7).getStyle();
 
           return (
             <EtherealAtomsGroup
               key={`ethereal-${element}`}
               atoms={elementAtoms}
               color={color}
-              coreColor={coreC}          // Pass tinted white core
+              coreColor={coreC}
               size={0.15 * finalRadius}
               radius={finalRadius}
-              particlesPerAtom={150}      // Reduced for cleaner look (from 600)
+              particlesPerAtom={150}
             />
           );
         }
 
-        // Fallback to standard sphere if disabled
+        // Fallback to standard spheres
         const finalRadius = (ELEMENT_RADII[element] || 0.5) * radiusScale * settings.scale;
 
         return (
