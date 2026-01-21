@@ -351,7 +351,7 @@ function App() {
       }}>
         <Canvas
           ref={canvasRef}
-          camera={{ position: [20, 15, 50], fov: 60 }}
+          camera={{ position: [20, 15, 50], fov: 45 }}
           dpr={[1, 2]}
           gl={{
             antialias: true,
