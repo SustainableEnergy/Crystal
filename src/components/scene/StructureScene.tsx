@@ -469,10 +469,11 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, li
                 <directionalLight position={[0, -5, -10]} intensity={backlightIntensity * 0.5} color="#cbd5e1" />
 
                 <Environment preset={lightingValues.env as any} blur={0.6} />
-                <Center key={material} position={[0, isMobile ? 2.0 : 0, 0]} onCentered={() => {
-                    // Force re-render after centering to fix disappearing atoms
-                    // This is a common fix for Center component issues
-                }}>
+                <Center
+                    key={material}
+                    position={[0, isMobile ? 2.0 : 0, 0]}
+                    cacheKey={material} // Prevent re-centering during animation
+                >
                     <group ref={groupRef}>
                         <Atoms
                             atoms={structureData.atoms}
@@ -483,7 +484,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, li
                             liAnimating={liAnimating}
                         />
 
-                        {/* Li Charge/Discharge Animation */}
+                        {/* Li Animation - inside Center so it follows the structure */}
                         <LiAnimation
                             liAtoms={structureData.atoms.filter(a => a.element === 'Li')}
                             isAnimating={liAnimating}
@@ -496,7 +497,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, li
                         <Polyhedra
                             atoms={structureData.atoms}
                             visible={showPolyhedra}
-                            showEdges={showPolyhedraEdges} // Controlled by Leva
+                            showEdges={showPolyhedraEdges}
                             clippingPlanes={planes}
                             elementSettings={elementSettings}
                         />
