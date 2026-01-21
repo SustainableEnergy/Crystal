@@ -230,10 +230,9 @@ function App() {
         width: isMobile ? '100%' : 'auto',
         zIndex: isMobile ? 998 : 999,
         transition: 'top 0.3s ease',
-        maxHeight: isMobile ? 'calc(100vh - 140px)' : '95vh', // 56px header + 70px bottom bar + 14px extra
+        maxHeight: isMobile ? 'calc(100vh - 56px - 70px - 10px)' : '95vh', // header + footer + padding
         overflowY: 'auto',
-        paddingBottom: isMobile ? '20px' : '0',
-        marginBottom: isMobile ? '70px' : '0' // Ensure scroll area clears the buttons
+        paddingBottom: isMobile ? '10px' : '0'
       }}>
         <Leva
           flat
@@ -312,7 +311,11 @@ function App() {
         }
       `}</style>
 
-      <div style={{ width: '100vw', height: '100vh', background: '#050505' }}>
+      <div style={{
+        width: '100vw',
+        height: isMobile ? 'calc(100vh - 70px)' : '100vh', // Leave space for footer on mobile
+        background: '#050505'
+      }}>
         <Canvas
           ref={canvasRef}
           camera={{ position: [20, 15, 50], fov: 60 }}
@@ -361,31 +364,29 @@ function App() {
         </div>
       )}
 
-      {/* Mobile: Bottom Action Bar */}
+      {/* Mobile: Bottom Action Bar (Fixed Footer) */}
       {isMobile && (
         <div style={{
           position: 'fixed',
           bottom: 0,
           left: 0,
           right: 0,
-          padding: '12px',
-          background: 'linear-gradient(180deg, transparent 0%, rgba(10, 10, 10, 0.95) 20%)',
-          backdropFilter: 'blur(10px)',
+          height: '70px',
+          padding: '12px 16px',
+          background: '#0a0a0a',
+          borderTop: '1px solid rgba(255,255,255,0.1)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '8px',
-          zIndex: 999,
-          pointerEvents: 'none'
+          gap: '12px',
+          zIndex: 999
         }}>
-          <div style={{ pointerEvents: 'auto' }}>
-            <SnapshotButton isMobile={true} />
-          </div>
+          <SnapshotButton isMobile={true} />
 
           <button
             onClick={handleResetCamera}
             style={{
-              padding: '10px 16px',
+              padding: '10px 20px',
               background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
               border: 'none',
               borderRadius: '8px',
@@ -394,14 +395,11 @@ function App() {
               fontWeight: '600',
               cursor: 'pointer',
               boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)',
-              minHeight: '44px',
-              pointerEvents: 'auto'
+              minHeight: '44px'
             }}
           >
             Reset View
           </button>
-
-
         </div>
       )}
 
