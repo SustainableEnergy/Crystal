@@ -94,6 +94,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, li
 
     const [cifAtoms, setCifAtoms] = useState<Atom[]>([]);
     const [elementSettings, setElementSettings] = useState<any>({});
+    const [centerOffset, setCenterOffset] = useState<[number, number, number]>([0, 0, 0]);
 
     // Emit element settings changes to parent
     useEffect(() => {
@@ -469,10 +470,28 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, li
                 <directionalLight position={[0, -5, -10]} intensity={backlightIntensity * 0.5} color="#cbd5e1" />
 
                 <Environment preset={lightingValues.env as any} blur={0.6} />
+
+                {/* Li Animation - OUTSIDE Center to prevent affecting rotation center */}
+                <group position={centerOffset}>
+                    <LiAnimation
+                        liAtoms={structureData.atoms.filter(a => a.element === 'Li')}
+                        isAnimating={liAnimating}
+                        liColor={elementSettings['Li']?.color || ELEMENT_COLORS['Li'] || '#0277BD'}
+                        liRadius={(ELEMENT_RADII['Li'] || 0.36) * radiusScale * (elementSettings['Li']?.scale || 1)}
+                        materialId={material}
+                        materialProps={materialProps}
+                    />
+                </group>
+
                 <Center
                     key={material}
                     position={[0, isMobile ? 2.0 : 0, 0]}
-                    cacheKey={material} // Prevent re-centering during animation
+                    onCentered={(props) => {
+                        if (props?.container) {
+                            const pos = props.container.position;
+                            setCenterOffset([pos.x, pos.y + (isMobile ? 2.0 : 0), pos.z]);
+                        }
+                    }}
                 >
                     <group ref={groupRef}>
                         <Atoms
@@ -482,16 +501,6 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, li
                             elementSettings={elementSettings}
                             materialProps={materialProps}
                             liAnimating={liAnimating}
-                        />
-
-                        {/* Li Animation - inside Center so it follows the structure */}
-                        <LiAnimation
-                            liAtoms={structureData.atoms.filter(a => a.element === 'Li')}
-                            isAnimating={liAnimating}
-                            liColor={elementSettings['Li']?.color || ELEMENT_COLORS['Li'] || '#0277BD'}
-                            liRadius={(ELEMENT_RADII['Li'] || 0.36) * radiusScale * (elementSettings['Li']?.scale || 1)}
-                            materialId={material}
-                            materialProps={materialProps}
                         />
 
                         <Polyhedra
