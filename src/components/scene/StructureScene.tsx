@@ -5,10 +5,9 @@ import * as THREE from 'three';
 import { generateNCM } from '../../core/builders/NCMBuilder';
 import { generateLFP } from '../../core/builders/LFPBuilder';
 import { generateLMFP } from '../../core/builders/LMFPBuilder';
-import { MATERIALS, getMaterialFamily, MATERIAL_FAMILIES } from '../../core/constants/materials';
+import { MATERIALS, getMaterialFamily, MATERIAL_FAMILIES, ELEMENT_COLORS, ELEMENT_PRIORITY } from '../../core/constants/materials';
 import { parseCIF } from '../../core/utils/CIFParser';
 import { Atoms } from './Atoms';
-import { Bonds } from './Bonds';
 import { Polyhedra } from './Polyhedra';
 import { Center, OrbitControls, Environment } from '@react-three/drei';
 import { EffectComposer, SSAO, Bloom } from '@react-three/postprocessing';
@@ -17,7 +16,6 @@ import { captureHighRes } from '../../core/utils/SnapshotUtil';
 import type { Atom } from '../../core/types';
 
 import { ErrorBoundary } from '../UI/ErrorBoundary';
-import { ELEMENT_COLORS } from '../../core/constants/materials';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 
 // --- SUB-COMPONENT: DYNAMIC ELEMENT CONTROLS ---
@@ -32,12 +30,10 @@ const ElementController = ({
         if (!atoms) return [];
         const elements = Array.from(new Set(atoms.map(a => a.element)));
 
-        // Define priority order for cathode materials
-        const priorityOrder = ['Li', 'Ni', 'Co', 'Mn', 'Fe', 'P', 'O'];
-
+        // Define priority order for cathode materials (from centralized config)
         return elements.sort((a, b) => {
-            const indexA = priorityOrder.indexOf(a);
-            const indexB = priorityOrder.indexOf(b);
+            const indexA = ELEMENT_PRIORITY.indexOf(a);
+            const indexB = ELEMENT_PRIORITY.indexOf(b);
 
             // If both are in priority list, sort by priority
             if (indexA !== -1 && indexB !== -1) return indexA - indexB;
@@ -83,12 +79,25 @@ const ElementController = ({
 };
 
 // --- MAIN COMPONENT ---
-export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpaceGroupUpdate?: (info: any) => void, isMobile?: boolean }) => {
+interface StructureSceneProps {
+    onSpaceGroupUpdate?: (info: any) => void;
+    onElementSettingsChange?: (settings: Record<string, { visible: boolean; scale: number; color: string }>) => void;
+    isMobile?: boolean;
+}
+
+export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, isMobile = false }: StructureSceneProps) => {
     const groupRef = useRef<THREE.Group>(null);
     const orbitRef = useRef<any>(null);
 
     const [cifAtoms, setCifAtoms] = useState<Atom[]>([]);
     const [elementSettings, setElementSettings] = useState<any>({});
+
+    // Emit element settings changes to parent
+    useEffect(() => {
+        if (onElementSettingsChange && Object.keys(elementSettings).length > 0) {
+            onElementSettingsChange(elementSettings);
+        }
+    }, [elementSettings, onElementSettingsChange]);
 
     // Structure state from external events
     const [material, setMaterial] = useState('NCM-811');
@@ -155,7 +164,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
     const {
         preset, radiusScale,
         roughness, metalness, clearcoat, transmission, ior, thickness, emissiveIntensity,
-        showBonds, showPolyhedra, showPolyhedraEdges, showAxes,
+        showPolyhedra, showPolyhedraEdges, showAxes,
         clipXMin, clipXMax, clipYMin, clipYMax, clipZMin, clipZMax,
         enableSSAO, ssaoIntensity, enableBloom, enableFog, fogNear, fogFar, backlightIntensity
     } = useControls('🎨 Visual Style', {
@@ -173,7 +182,6 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
             emissiveIntensity: { value: 0, min: 0, max: 10, render: (get) => get('🎨 Visual Style.Material.preset') === 'Custom' },
         }),
         'Display': folder({
-            showBonds: { value: false, label: 'Show Bonds' },
             showPolyhedra: { value: true, label: 'Show Polyhedra' },
             showPolyhedraEdges: { value: true, label: 'Polyhedra Edges', render: (get) => get('🎨 Visual Style.Display.showPolyhedra') },
             showAxes: { value: false, label: 'Show Pivot' },
@@ -470,7 +478,6 @@ export const StructureScene = ({ onSpaceGroupUpdate, isMobile = false }: { onSpa
                             elementSettings={elementSettings}
                             materialProps={materialProps}
                         />
-                        <Bonds atoms={structureData.atoms} visible={showBonds} />
                         <Polyhedra
                             atoms={structureData.atoms}
                             visible={showPolyhedra}

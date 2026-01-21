@@ -1,32 +1,37 @@
 import { useMemo } from 'react';
-import { ELEMENT_COLORS } from '../../core/constants/materials';
+import { ELEMENT_COLORS, MATERIAL_ELEMENTS } from '../../core/constants/materials';
 
 interface LegendProps {
     material: string;
     isMobile?: boolean;
+    customColors?: Record<string, string>; // User-defined colors from ElementController
 }
 
-export const Legend = ({ material, isMobile = false }: LegendProps) => {
+export const Legend = ({ material, isMobile = false, customColors }: LegendProps) => {
 
     // Determine which elements to show based on material
     const elementsToShow = useMemo(() => {
         const mat = material.toUpperCase();
 
-        if (mat.includes('NCM')) return ['Li', 'Ni', 'Co', 'Mn', 'O'];
-
-        // Check for LMFP specifically before LFP
-        if (mat.includes('LMFP')) return ['Li', 'Mn', 'Fe', 'P', 'O'];
-
-        if (mat.includes('LFP')) return ['Li', 'Fe', 'P', 'O'];
-        if (mat.includes('LCO')) return ['Li', 'Co', 'O'];
+        // Use centralized MATERIAL_ELEMENTS mapping
+        for (const [family, elements] of Object.entries(MATERIAL_ELEMENTS)) {
+            if (mat.includes(family)) {
+                return elements;
+            }
+        }
 
         return Object.keys(ELEMENT_COLORS); // Fallback: show all
     }, [material]);
 
+    // Get color for an element, preferring custom color if available
+    const getColor = (element: string): string => {
+        return customColors?.[element] || ELEMENT_COLORS[element] || '#cccccc';
+    };
+
     return (
         <div style={{
             position: 'absolute',
-            bottom: isMobile ? '130px' : '30px', // Increased mobile offset to clear taller controls
+            bottom: isMobile ? '80px' : '30px', // Adjusted for new footer height
             left: '50%',
             transform: 'translateX(-50%)',
             backgroundColor: 'rgba(0, 0, 0, 0.6)',
@@ -49,7 +54,7 @@ export const Legend = ({ material, isMobile = false }: LegendProps) => {
                         width: '12px',
                         height: '12px',
                         borderRadius: '50%',
-                        backgroundColor: ELEMENT_COLORS[el],
+                        backgroundColor: getColor(el),
                         border: '1px solid rgba(255,255,255,0.3)',
                         boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
                     }} />

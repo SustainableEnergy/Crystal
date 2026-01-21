@@ -71,7 +71,7 @@ export const Polyhedra = ({ atoms, visible, showEdges = true, clippingPlanes, el
                     <fresnelMaterial
                         color={poly.color}
                         intensity={1.2}  // Reduced from 2.5
-                        opacity={0.5}    // Reduced opacity
+                        opacity={0.65}    // Reduced opacity
                         transparent
                         depthWrite={false}
                         side={THREE.DoubleSide}
@@ -83,7 +83,7 @@ export const Polyhedra = ({ atoms, visible, showEdges = true, clippingPlanes, el
                             <edgesGeometry args={[poly.geometry]} />
                             <lineBasicMaterial
                                 color={poly.color} // Use same color just brighter/distinct
-                                opacity={0.15} // Much subtler (was 0.6)
+                                opacity={0.25} // Much subtler (was 0.6)
                                 transparent
                                 clippingPlanes={clippingPlanes}
                                 blending={THREE.AdditiveBlending}

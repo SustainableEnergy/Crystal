@@ -136,3 +136,15 @@ export const ELEMENT_RADII: { [key: string]: number } = {
     Mg: 0.45,
     Al: 0.35,
 };
+
+// Element display priority for UI sorting
+export const ELEMENT_PRIORITY = ['Li', 'Ni', 'Co', 'Mn', 'Fe', 'P', 'O', 'Na', 'Mg', 'Al'];
+
+// Material family to elements mapping
+export const MATERIAL_ELEMENTS: Record<string, string[]> = {
+    'NCM': ['Li', 'Ni', 'Co', 'Mn', 'O'],
+    'LFP': ['Li', 'Fe', 'P', 'O'],
+    'LMFP': ['Li', 'Mn', 'Fe', 'P', 'O'],
+    'LCO': ['Li', 'Co', 'O'],
+};
+

@@ -74,6 +74,16 @@ function App() {
   // New states
   const [currentStructure, setCurrentStructure] = useState('NCM-811');
   const [showBackground, setShowBackground] = useState(true);
+  const [elementColors, setElementColors] = useState<Record<string, string>>({});
+
+  // Handler for element settings changes from StructureScene
+  const handleElementSettingsChange = (settings: Record<string, { visible: boolean; scale: number; color: string }>) => {
+    const colors: Record<string, string> = {};
+    for (const [element, data] of Object.entries(settings)) {
+      colors[element] = data.color;
+    }
+    setElementColors(colors);
+  };
 
   const handleResetCamera = () => {
     const event = new CustomEvent('reset-camera');
@@ -337,6 +347,7 @@ function App() {
           <Suspense fallback={null}>
             <StructureScene
               onSpaceGroupUpdate={setSpaceGroupInfo}
+              onElementSettingsChange={handleElementSettingsChange}
               isMobile={isMobile}
             />
           </Suspense>
@@ -448,7 +459,7 @@ function App() {
         </>
       )}
 
-      <Legend material={currentStructure} isMobile={isMobile} />
+      <Legend material={currentStructure} isMobile={isMobile} customColors={elementColors} />
 
       {(!isMobile || structureSelectorOpen) && (
         <StructureSelector
