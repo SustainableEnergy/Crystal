@@ -1,7 +1,7 @@
-import { useRef, useMemo, useCallback } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { getLiAnimationConfig, type LiAnimationConfig } from '../../core/constants/materials';
+import { getLiAnimationConfig } from '../../core/constants/materials';
 
 interface LiAnimationProps {
     liAtoms: Array<{ id: string; position: [number, number, number] }>;
@@ -10,55 +10,18 @@ interface LiAnimationProps {
     liRadius: number;
     materialId: string;
     materialProps?: any;
+    clippingPlanes?: THREE.Plane[];
+    enableEthereal?: boolean;
 }
 
-// Animation timing:
-// Total cycle: 7s charge + 2s pause + 7s discharge + 2s pause = 18s
-const CHARGE_DURATION = 7;
-const PAUSE_DURATION = 2;
+const CHARGE_DURATION = 4;
+const PAUSE_DURATION = 3;
 const CYCLE_DURATION = (CHARGE_DURATION + PAUSE_DURATION) * 2;
-const MAX_DELAY = 3.5;
+const MAX_DELAY = 1.5;
 
-// Seeded random for stable selection
 const seededRandom = (seed: number): number => {
     const x = Math.sin(seed * 9999) * 10000;
     return x - Math.floor(x);
-};
-
-// Smooth easing
-const easeInOutQuad = (t: number): number => {
-    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-};
-
-// Calculate outward direction
-const getOutwardDirection = (
-    atomPos: [number, number, number],
-    bounds: { min: [number, number, number]; max: [number, number, number] },
-    axis: LiAnimationConfig['migrationAxis']
-): THREE.Vector3 => {
-    const centerX = (bounds.min[0] + bounds.max[0]) / 2;
-    const centerY = (bounds.min[1] + bounds.max[1]) / 2;
-    const centerZ = (bounds.min[2] + bounds.max[2]) / 2;
-
-    switch (axis) {
-        case 'xy':
-            const distToMinX = Math.abs(atomPos[0] - bounds.min[0]);
-            const distToMaxX = Math.abs(atomPos[0] - bounds.max[0]);
-            const distToMinY = Math.abs(atomPos[1] - bounds.min[1]);
-            const distToMaxY = Math.abs(atomPos[1] - bounds.max[1]);
-            const nearestX = distToMinX < distToMaxX ? -1 : 1;
-            const nearestY = distToMinY < distToMaxY ? -1 : 1;
-            return Math.min(distToMinX, distToMaxX) <= Math.min(distToMinY, distToMaxY)
-                ? new THREE.Vector3(nearestX, 0, 0)
-                : new THREE.Vector3(0, nearestY, 0);
-        case 'z':
-            const distToMinZ = Math.abs(atomPos[2] - bounds.min[2]);
-            const distToMaxZ = Math.abs(atomPos[2] - bounds.max[2]);
-            return new THREE.Vector3(0, 0, distToMinZ <= distToMaxZ ? -1 : 1);
-        default:
-            const dir = new THREE.Vector3(atomPos[0] - centerX, atomPos[1] - centerY, atomPos[2] - centerZ);
-            return dir.lengthSq() > 0.01 ? dir.normalize() : new THREE.Vector3(1, 0, 0);
-    }
 };
 
 const defaultMaterialProps = {
@@ -66,6 +29,7 @@ const defaultMaterialProps = {
     metalness: 0.5,
     clearcoat: 1.0,
     clearcoatRoughness: 0.1,
+    opacity: 1,
 };
 
 export const LiAnimation = ({
@@ -74,155 +38,228 @@ export const LiAnimation = ({
     liColor,
     liRadius,
     materialId,
-    materialProps = defaultMaterialProps
+    materialProps = defaultMaterialProps,
+    clippingPlanes,
+    enableEthereal = false
 }: LiAnimationProps) => {
-    const groupRef = useRef<THREE.Group>(null);
+    // Two meshes: One for solid rendering (perfect match), one for fading (artifact free)
+    const solidMeshRef = useRef<THREE.InstancedMesh>(null);
+    const fadeMeshRef = useRef<THREE.InstancedMesh>(null);
     const startTimeRef = useRef<number | null>(null);
 
-    const animConfig = useMemo(() => getLiAnimationConfig(materialId), [materialId]);
-
-    // Shared geometry for performance
+    const config = useMemo(() => getLiAnimationConfig(materialId), [materialId]);
     const sphereGeometry = useMemo(() => new THREE.SphereGeometry(liRadius, 24, 24), [liRadius]);
 
-    // Calculate bounds
-    const bounds = useMemo(() => {
-        if (liAtoms.length === 0) {
-            return { min: [0, 0, 0] as [number, number, number], max: [0, 0, 0] as [number, number, number] };
-        }
-        const min: [number, number, number] = [Infinity, Infinity, Infinity];
-        const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
-        liAtoms.forEach(atom => {
-            min[0] = Math.min(min[0], atom.position[0]);
-            min[1] = Math.min(min[1], atom.position[1]);
-            min[2] = Math.min(min[2], atom.position[2]);
-            max[0] = Math.max(max[0], atom.position[0]);
-            max[1] = Math.max(max[1], atom.position[1]);
-            max[2] = Math.max(max[2], atom.position[2]);
+    const directions = useMemo(() => {
+        if (liAtoms.length === 0) return [];
+        const center = new THREE.Vector3();
+        liAtoms.forEach(a => center.add(new THREE.Vector3(...a.position)));
+        center.divideScalar(liAtoms.length);
+
+        return liAtoms.map(atom => {
+            const vec = new THREE.Vector3(...atom.position).sub(center);
+            if (vec.lengthSq() < 0.0001) return new THREE.Vector3(0, 0, 1);
+
+            if (config.migrationAxis === 'z') {
+                return new THREE.Vector3(0, 0, Math.sign(vec.z) || 1);
+            } else if (config.migrationAxis === 'xy') {
+                vec.z = 0;
+                vec.normalize();
+                return vec;
+            }
+            return vec.normalize();
         });
-        return { min, max };
-    }, [liAtoms]);
+    }, [liAtoms, config.migrationAxis]);
 
-    // Pre-calculate animation data with SEEDED random for stability
-    const animationData = useMemo(() => {
-        if (liAtoms.length === 0) return { isMoving: [], directions: [], delays: [] };
-
-        const center = [
-            (bounds.min[0] + bounds.max[0]) / 2,
-            (bounds.min[1] + bounds.max[1]) / 2,
-            (bounds.min[2] + bounds.max[2]) / 2
-        ];
-
-        let maxDist = 0;
-        const distances = liAtoms.map(atom => {
-            const d = Math.sqrt(
-                Math.pow(atom.position[0] - center[0], 2) +
-                Math.pow(atom.position[1] - center[1], 2) +
-                Math.pow(atom.position[2] - center[2], 2)
-            );
-            maxDist = Math.max(maxDist, d);
-            return d;
-        });
-
-        const numToMove = Math.floor(liAtoms.length * animConfig.extractionRate);
-
-        // SEEDED random shuffle (stable based on atom count as seed)
-        const seed = liAtoms.length * 1000 + materialId.charCodeAt(0);
-        const indices = liAtoms.map((_, i) => i);
-        for (let i = indices.length - 1; i > 0; i--) {
-            const j = Math.floor(seededRandom(seed + i) * (i + 1));
-            [indices[i], indices[j]] = [indices[j], indices[i]];
-        }
-        const movingSet = new Set(indices.slice(0, numToMove));
-
-        const isMoving: boolean[] = [];
-        const directions: THREE.Vector3[] = [];
-        const delays: number[] = [];
-
-        liAtoms.forEach((atom, i) => {
-            isMoving.push(movingSet.has(i));
-            directions.push(getOutwardDirection(atom.position, bounds, animConfig.migrationAxis));
-            const normalizedDist = maxDist > 0 ? distances[i] / maxDist : 0;
-            delays.push((1 - normalizedDist) * MAX_DELAY);
-        });
-
-        return { isMoving, directions, delays };
-    }, [liAtoms, animConfig, bounds, materialId]);
-
-    const getAtomProgress = useCallback((elapsed: number, delay: number) => {
-        const cycleTime = elapsed % CYCLE_DURATION;
-        if (cycleTime < CHARGE_DURATION) {
-            const atomTime = Math.max(0, cycleTime - delay);
-            const atomDuration = CHARGE_DURATION - MAX_DELAY;
-            return 1 - easeInOutQuad(Math.min(1, atomTime / atomDuration));
-        } else if (cycleTime < CHARGE_DURATION + PAUSE_DURATION) {
-            return 0;
-        } else if (cycleTime < CHARGE_DURATION * 2 + PAUSE_DURATION) {
-            const phaseStart = CHARGE_DURATION + PAUSE_DURATION;
-            const reverseDelay = MAX_DELAY - delay;
-            const atomTime = Math.max(0, cycleTime - phaseStart - reverseDelay);
-            const atomDuration = CHARGE_DURATION - MAX_DELAY;
-            return easeInOutQuad(Math.min(1, atomTime / atomDuration));
-        } else {
-            return 1;
-        }
+    // Simple Opacity Shader for the FADE mesh only
+    const onBeforeCompile = useMemo(() => (shader: any) => {
+        shader.vertexShader = `
+            attribute float instanceOpacity;
+            varying float vInstanceOpacity;
+            ${shader.vertexShader}
+        `.replace(
+            '#include <begin_vertex>',
+            `
+            #include <begin_vertex>
+            vInstanceOpacity = instanceOpacity;
+            `
+        );
+        shader.fragmentShader = `
+            varying float vInstanceOpacity;
+            ${shader.fragmentShader}
+        `.replace(
+            '#include <dithering_fragment>',
+            `
+            #include <dithering_fragment>
+            gl_FragColor.a *= vInstanceOpacity;
+            `
+        );
     }, []);
 
-    // Optimized animation loop
+    useEffect(() => {
+        startTimeRef.current = null;
+    }, [materialId, isAnimating]);
+
     useFrame((state) => {
-        if (!isAnimating || !groupRef.current) {
-            startTimeRef.current = null;
-            return;
-        }
+        if (!solidMeshRef.current || !fadeMeshRef.current || liAtoms.length === 0 || !isAnimating) return;
 
-        if (startTimeRef.current === null) {
-            startTimeRef.current = state.clock.elapsedTime;
-        }
+        const time = state.clock.getElapsedTime();
+        if (startTimeRef.current === null) startTimeRef.current = time;
 
-        const elapsed = state.clock.elapsedTime - startTimeRef.current;
-        const children = groupRef.current.children;
+        const relTime = (time - startTimeRef.current) % CYCLE_DURATION;
 
-        for (let i = 0; i < children.length; i++) {
-            const mesh = children[i] as THREE.Mesh;
-            if (!mesh.isMesh || !liAtoms[i]) continue;
+        const solidMesh = solidMeshRef.current;
+        const fadeMesh = fadeMeshRef.current;
+        const dummy = new THREE.Object3D();
 
-            const originalPos = liAtoms[i].position;
+        // Only fadeMesh needs opacity attribute update
+        const opacityAttr = fadeMesh.geometry.getAttribute('instanceOpacity') as THREE.InstancedBufferAttribute;
 
-            if (animationData.isMoving[i]) {
-                const t = getAtomProgress(elapsed, animationData.delays[i]);
-                const dir = animationData.directions[i];
-                const distance = (1 - t) * animConfig.migrationDistance;
+        liAtoms.forEach((atom, i) => {
+            const seed = i * 123.45 + (materialId.charCodeAt(0) || 0);
+            const randomThreshold = seededRandom(seed);
+            const isExtractable = seededRandom(seed + 999) < config.extractionRate;
 
-                mesh.position.set(
-                    originalPos[0] + dir.x * distance,
-                    originalPos[1] + dir.y * distance,
-                    originalPos[2] + dir.z * distance
-                );
+            let isSolid = true; // Default to solid state
+            let currentOpacity = 1;
+            let offset = new THREE.Vector3(0, 0, 0);
 
-                const mat = mesh.material as THREE.MeshPhysicalMaterial;
-                mat.transparent = true;
-                mat.opacity = t < 0.3 ? t / 0.3 : 1;
-            } else {
-                mesh.position.set(originalPos[0], originalPos[1], originalPos[2]);
-                const mat = mesh.material as THREE.MeshPhysicalMaterial;
-                mat.opacity = 1;
-                mat.transparent = false;
+            if (isExtractable) {
+                const atomDelay = randomThreshold * MAX_DELAY;
+                const dir = directions[i];
+
+                if (relTime < CHARGE_DURATION) {
+                    const effectiveTime = Math.max(0, relTime - atomDelay);
+                    const flightDuration = CHARGE_DURATION - MAX_DELAY;
+                    const progress = Math.min(1, effectiveTime / flightDuration);
+
+                    if (progress > 0.85) {
+                        // Switch to Fade Mode
+                        isSolid = false;
+                        currentOpacity = 1 - ((progress - 0.85) / 0.15);
+                    }
+                    if (progress >= 0.99) {
+                        currentOpacity = 0;
+                        isSolid = false;
+                    }
+
+                    const dist = progress * config.migrationDistance;
+                    offset.copy(dir).multiplyScalar(dist);
+                } else if (relTime < CHARGE_DURATION + PAUSE_DURATION) {
+                    isSolid = false;
+                    currentOpacity = 0;
+                } else if (relTime < (CHARGE_DURATION * 2) + PAUSE_DURATION) {
+                    const dischargeTime = relTime - (CHARGE_DURATION + PAUSE_DURATION);
+                    const effectiveTime = Math.max(0, dischargeTime - atomDelay);
+                    const flightDuration = CHARGE_DURATION - MAX_DELAY;
+                    const progress = Math.min(1, effectiveTime / flightDuration);
+
+                    if (progress < 0.15) {
+                        // Switch to Fade Mode
+                        isSolid = false;
+                        currentOpacity = progress / 0.15;
+                    }
+
+                    const invProgress = 1 - progress;
+                    const dist = invProgress * config.migrationDistance;
+                    offset.copy(dir).multiplyScalar(dist);
+                } else {
+                    isSolid = true;
+                    currentOpacity = 1;
+                }
             }
-        }
+
+            // Shared Position Logic
+            dummy.position.set(atom.position[0] + offset.x, atom.position[1] + offset.y, atom.position[2] + offset.z);
+            dummy.updateMatrix();
+
+            // Apply to Meshes based on State
+            if (isSolid) {
+                // Show Solid, Hide Fade
+                dummy.scale.setScalar(1);
+                dummy.updateMatrix();
+                solidMesh.setMatrixAt(i, dummy.matrix);
+
+                dummy.scale.setScalar(0); // Hide fade
+                dummy.updateMatrix();
+                fadeMesh.setMatrixAt(i, dummy.matrix);
+            } else {
+                // Hide Solid, Show Fade
+                dummy.scale.setScalar(0); // Hide solid
+                dummy.updateMatrix();
+                solidMesh.setMatrixAt(i, dummy.matrix);
+
+                dummy.scale.setScalar(1);
+                dummy.updateMatrix();
+                fadeMesh.setMatrixAt(i, dummy.matrix);
+
+                if (opacityAttr) opacityAttr.setX(i, currentOpacity);
+            }
+        });
+
+        solidMesh.instanceMatrix.needsUpdate = true;
+        fadeMesh.instanceMatrix.needsUpdate = true;
+        if (opacityAttr) opacityAttr.needsUpdate = true;
     });
 
-    if (!isAnimating || liAtoms.length === 0) return null;
+    if (liAtoms.length === 0 || !isAnimating) return null;
+
+    const finalColor = enableEthereal ? new THREE.Color(liColor).lerp(new THREE.Color('#ffffff'), 0.5) : liColor;
+    const finalEmissive = enableEthereal ? new THREE.Color(liColor).multiplyScalar(3) : liColor;
+
+    // Note: Ethereal glow behaves best with transparency, but we respect the Solid/Fade split
+    // For Fade mesh, we use default depthWrite=false to solve artifacts.
 
     return (
-        <group ref={groupRef}>
-            {liAtoms.map((atom) => (
-                <mesh key={atom.id} position={atom.position} geometry={sphereGeometry}>
-                    <meshPhysicalMaterial
-                        color={liColor}
-                        transparent
-                        {...materialProps}
-                    />
-                </mesh>
-            ))}
+        <group>
+            {/* SOLID MESH: Perfectly opaque, writes depth, matches Atomes.tsx */}
+            <instancedMesh
+                ref={solidMeshRef}
+                args={[sphereGeometry, undefined, liAtoms.length]}
+                frustumCulled={false}
+                renderOrder={0}
+                castShadow={true} // Shadows allowed on solid
+                receiveShadow={true}
+            >
+                <meshPhysicalMaterial
+                    {...defaultMaterialProps}
+                    {...materialProps}
+                    color={finalColor}
+                    emissive={finalEmissive}
+                    emissiveIntensity={materialProps?.emissiveIntensity || 1}
+                    transparent={false} // OPAQUE
+                    depthWrite={true}
+                    clippingPlanes={clippingPlanes}
+                    clipShadows
+                />
+            </instancedMesh>
+
+            {/* FADE MESH: Transparent, no depth write (NO ARTIFACTS), smooth fade */}
+            <instancedMesh
+                ref={fadeMeshRef}
+                args={[sphereGeometry, undefined, liAtoms.length]}
+                frustumCulled={false}
+                renderOrder={-1} // Draw before transparent polyhedra
+                castShadow={false}
+                receiveShadow={false}
+            >
+                <instancedBufferAttribute
+                    attach="geometry-attributes-instanceOpacity"
+                    args={[new Float32Array(liAtoms.length).fill(1), 1]}
+                />
+                <meshPhysicalMaterial
+                    {...defaultMaterialProps}
+                    {...materialProps}
+                    color={finalColor}
+                    emissive={finalEmissive}
+                    emissiveIntensity={materialProps?.emissiveIntensity || 1}
+                    transparent={true} // TRANSPARENT
+                    depthWrite={false} // NO DEPTH WRITE -> NO BLACK ARTIFACT
+                    onBeforeCompile={onBeforeCompile}
+                    clippingPlanes={clippingPlanes}
+                    clipShadows={false}
+                />
+            </instancedMesh>
         </group>
     );
 };

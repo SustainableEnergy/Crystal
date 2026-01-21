@@ -1,6 +1,5 @@
 ﻿import { useMemo, useRef, useState, useEffect } from 'react';
 import { useControls, folder, buttonGroup } from 'leva';
-import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { generateNCM } from '../../core/builders/NCMBuilder';
 import { generateLFP } from '../../core/builders/LFPBuilder';
@@ -11,10 +10,8 @@ import { Atoms } from './Atoms';
 import { Polyhedra } from './Polyhedra';
 import { LiAnimation } from './LiAnimation';
 import { LabeledAxes } from './LabeledAxes';
-import { Center, OrbitControls, Environment } from '@react-three/drei';
-import { EffectComposer, SSAO, Bloom } from '@react-three/postprocessing';
+import { OrbitControls, Environment } from '@react-three/drei';
 import { exportScene } from '../../core/utils/Exporter';
-import { captureHighRes } from '../../core/utils/SnapshotUtil';
 import type { Atom } from '../../core/types';
 
 import { ErrorBoundary } from '../UI/ErrorBoundary';
@@ -84,17 +81,17 @@ const ElementController = ({
 interface StructureSceneProps {
     onSpaceGroupUpdate?: (info: any) => void;
     onElementSettingsChange?: (settings: Record<string, { visible: boolean; scale: number; color: string }>) => void;
+    onVisualSettingsChange?: (settings: any) => void;
     liAnimating?: boolean; // When true, Li charge/discharge animation is active
     isMobile?: boolean;
 }
 
-export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, liAnimating = false, isMobile = false }: StructureSceneProps) => {
+export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, onVisualSettingsChange, liAnimating = false, isMobile = false }: StructureSceneProps) => {
     const groupRef = useRef<THREE.Group>(null);
     const orbitRef = useRef<any>(null);
 
     const [cifAtoms, setCifAtoms] = useState<Atom[]>([]);
     const [elementSettings, setElementSettings] = useState<any>({});
-    const [centerOffset, setCenterOffset] = useState<[number, number, number]>([0, 0, 0]);
 
     // Emit element settings changes to parent
     useEffect(() => {
@@ -170,7 +167,9 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, li
         roughness, metalness, clearcoat, transmission, ior, thickness, emissiveIntensity,
         showPolyhedra, showPolyhedraEdges, showAxes,
         clipXMin, clipXMax, clipYMin, clipYMax, clipZMin, clipZMax,
-        enableSSAO, ssaoIntensity, enableBloom, enableFog, fogNear, fogFar, backlightIntensity
+        enableBloom, enableFog, fogNear, fogFar, backlightIntensity,
+        aoIntensity, aoRadius, aoDistanceFalloff, aoColor,
+        enableEthereal
     } = useControls('🎨 Visual Style', {
         'Material': folder({
             preset: { options: ['Ceramic', 'Metallic', 'Matte', 'Glass', 'Plastic', 'Emissive', 'Custom'], value: 'Matte' },
@@ -198,16 +197,33 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, li
             clipZMin: { value: 0, min: 0, max: 100, label: 'Clip Z Min' },
             clipZMax: { value: 100, min: 0, max: 100, label: 'Clip Z Max' },
         }),
+        'Effects (Premium AO)': folder({
+            aoIntensity: { value: 1.0, min: 0, max: 2, label: 'AO Intensity' },
+            aoRadius: { value: 5.0, min: 1, max: 10, label: 'AO Radius' },
+            aoDistanceFalloff: { value: 1.0, min: 0, max: 2, label: 'Distance Falloff' },
+            aoColor: { value: '#000000', label: 'AO Color' },
+        }),
         'Effects (Beta)': folder({
-            enableSSAO: { value: true, label: 'Enable Volume (SSAO)' },
-            ssaoIntensity: { value: 40, min: 0, max: 100, label: 'Volume Strength', render: (get) => get('🎨 Visual Style.Effects (Beta).enableSSAO') },
             enableBloom: { value: true, label: 'Enable Glow (Bloom)' },
             enableFog: { value: true, label: 'Enable Depth Fog' },
-            fogNear: { value: 10, min: 0, max: 50, label: 'Fog Start', render: (get) => get('🎨 Visual Style.Effects (Beta).enableFog') },
-            fogFar: { value: 80, min: 20, max: 200, label: 'Fog End', render: (get) => get('🎨 Visual Style.Effects (Beta).enableFog') },
+            fogNear: { value: 20, min: 0, max: 100, label: 'Fog Start', render: (get) => get('🎨 Visual Style.Effects (Beta).enableFog') },
+            fogFar: { value: 500, min: 50, max: 800, label: 'Fog End', render: (get) => get('🎨 Visual Style.Effects (Beta).enableFog') },
             backlightIntensity: { value: 2.0, min: 0, max: 5, label: 'Rim Light' }
+        }),
+        'Ethereal Effects': folder({
+            enableEthereal: { value: false, label: 'Enable Cloud (Li/Na)' }
         })
     });
+
+    // Handle visual setting changes
+    useEffect(() => {
+        if (onVisualSettingsChange) {
+            onVisualSettingsChange({
+                enableBloom, enableFog, fogNear, fogFar, backlightIntensity,
+                aoIntensity, aoRadius, aoDistanceFalloff, aoColor
+            });
+        }
+    }, [onVisualSettingsChange, enableBloom, enableFog, fogNear, fogFar, backlightIntensity, aoIntensity, aoRadius, aoDistanceFalloff, aoColor]);
 
     // Listen for structure change events
     useEffect(() => {
@@ -216,7 +232,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, li
             console.log('Structure change event:', structure);
             setMaterial(structure);
 
-            // Trigger camera reset
+            // Trigger camera reset (dispatched to window, caught below)
             window.dispatchEvent(new Event('reset-camera'));
 
             // Handle CIF data loading
@@ -242,7 +258,19 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, li
         };
 
         window.addEventListener('structure-change', handleStructureChange);
-        return () => window.removeEventListener('structure-change', handleStructureChange);
+
+        // Handle Camera Reset
+        const handleResetCamera = () => {
+            if (orbitRef.current) {
+                orbitRef.current.reset();
+            }
+        };
+        window.addEventListener('reset-camera', handleResetCamera);
+
+        return () => {
+            window.removeEventListener('structure-change', handleStructureChange);
+            window.removeEventListener('reset-camera', handleResetCamera);
+        };
     }, []);
 
     const [autoRotate, setAutoRotate] = useState(true);
@@ -314,139 +342,147 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, li
 
     const structureData = useMemo(() => {
         try {
-            let data;
+            let data: { atoms: Atom[], unitCell?: any, params?: any };
             const baseMaterial = getMaterialFamily(material);
 
-            switch (baseMaterial as any) {
-                case MATERIAL_FAMILIES.NCM: data = generateNCM(nx, ny, nz, ncmRatio as any); break;
-                case MATERIAL_FAMILIES.LFP: data = generateLFP(nx, ny, nz); break;
-                case MATERIAL_FAMILIES.LMFP: data = generateLMFP(nx, ny, nz); break;
-                case 'CIF':
-                case 'CIF Option':
-                    data = { atoms: cifAtoms, unitCell: { a: 10, b: 10, c: 10, alpha: 90, beta: 90, gamma: 90 } };
+            switch (baseMaterial) {
+                case MATERIAL_FAMILIES.NCM:
+                    data = generateNCM(nx, ny, nz, ncmRatio as any);
                     break;
-                default: data = generateNCM(nx, ny, nz, '811');
+                case MATERIAL_FAMILIES.LFP:
+                    data = generateLFP(nx, ny, nz);
+                    break;
+                case MATERIAL_FAMILIES.LMFP:
+                    data = generateLMFP(nx, ny, nz);
+                    break;
+                default:
+                    if (material === 'CIF Option' || material === 'CIF') {
+                        data = { atoms: cifAtoms, unitCell: { a: 10, b: 10, c: 10, alpha: 90, beta: 90, gamma: 90 } };
+                    } else {
+                        data = generateNCM(nx, ny, nz, '811');
+                    }
             }
 
-            // Emit space group update event
-            if (onSpaceGroupUpdate) {
-                onSpaceGroupUpdate({ material, unitCell: data.unitCell });
-            }
-            window.dispatchEvent(new CustomEvent('space-group-update', {
-                detail: { material, unitCell: data.unitCell }
-            }));
-
-            return data;
+            return { atoms: data.atoms, cellParams: (data.unitCell || data.params) };
         } catch (e) {
             console.error("Structure Generation Error", e);
-            return { atoms: [], unitCell: { a: 10, b: 10, c: 10, alpha: 90, beta: 90, gamma: 90 } };
+            return { atoms: [], cellParams: {} };
         }
-    }, [material, nx, ny, nz, ncmRatio, onSpaceGroupUpdate]);
+    }, [material, nx, ny, nz, ncmRatio, cifAtoms]);
 
-    const materialProps = useMemo(() => {
-        const base = { roughness, metalness, clearcoat, clearcoatRoughness: 0.2, transmission, ior, thickness, emissiveIntensity, opacity: 1, transparent: false };
-        switch (preset) {
-            case 'Ceramic': return { ...base, roughness: 0.3, metalness: 0.1, clearcoat: 0.8 }; // Increased roughness, reduced clearcoat
-            case 'Metallic': return { ...base, roughness: 0.4, metalness: 0.8, clearcoat: 0.1 }; // Increased roughness
-            case 'Matte': return { ...base, roughness: 0.8, metalness: 0.0, clearcoat: 0.0 };
-            case 'Glass': return { ...base, roughness: 0.1, metalness: 0.0, transmission: 0.95, ior: 1.5, thickness: 1.0, transparent: true, opacity: 0.3 };
-            case 'Plastic': return { ...base, roughness: 0.2, metalness: 0.0, clearcoat: 0.3 };
-            case 'Emissive': return { ...base, roughness: 0.1, metalness: 0.0, emissive: '#ffffff', emissiveIntensity: 2.0 };
-            default: return base;
+    // Handle side effects (updates) in useEffect to avoid infinite loops
+    useEffect(() => {
+        if (!structureData.cellParams) return;
+
+        // Emit space group update event
+        if (onSpaceGroupUpdate) {
+            onSpaceGroupUpdate({ material, unitCell: structureData.cellParams });
         }
-    }, [preset, roughness, metalness, clearcoat, transmission, ior, thickness, emissiveIntensity]);
+        window.dispatchEvent(new CustomEvent('space-group-update', {
+            detail: { material, unitCell: structureData.cellParams }
+        }));
+    }, [structureData, material, onSpaceGroupUpdate]);
 
+    // Debug: Check if atoms are actually generated
+    useEffect(() => {
+        console.log("StructureScene: structureData update:", {
+            atomCount: structureData.atoms?.length,
+            sampleAtom: structureData.atoms?.[0],
+            cellParams: structureData.cellParams
+        });
+    }, [structureData]);
+
+    // Calculate Bounding Box Center manually to ensure precise centering
+    const sceneCenterOffset = useMemo(() => {
+        if (!structureData.atoms || structureData.atoms.length === 0) return [0, 0, 0] as [number, number, number];
+
+        let minX = Infinity, minY = Infinity, minZ = Infinity;
+        let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+        let validCount = 0;
+
+        for (const atom of structureData.atoms) {
+            if (!atom.position || atom.position.length < 3) continue;
+            const [x, y, z] = atom.position;
+            // Less aggressive check, just ensure it's a number
+            if (typeof x !== 'number' || typeof y !== 'number' || typeof z !== 'number') continue;
+
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (z < minZ) minZ = z;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+            if (z > maxZ) maxZ = z;
+            validCount++;
+        }
+
+        if (validCount === 0 || minX === Infinity) return [0, 0, 0] as [number, number, number];
+
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+        const centerZ = (minZ + maxZ) / 2;
+
+        return [-centerX, -centerY + (isMobile ? 2.0 : 0), -centerZ] as [number, number, number];
+    }, [structureData.atoms, isMobile]);
+    // Dynamic Clipping Planes logic
     const planes = useMemo(() => {
-        const maxDist = 50;
         const p = [];
+        if (!structureData.atoms || structureData.atoms.length === 0) return [];
 
-        // X Axis
-        if (clipXMin > 0) p.push(new THREE.Plane(new THREE.Vector3(1, 0, 0), -(clipXMin / 100) * maxDist));
-        if (clipXMax < 100) p.push(new THREE.Plane(new THREE.Vector3(-1, 0, 0), (clipXMax / 100) * maxDist));
+        let minLocalX = Infinity, minLocalY = Infinity, minLocalZ = Infinity;
+        let maxLocalX = -Infinity, maxLocalY = -Infinity, maxLocalZ = -Infinity;
 
-        // Y Axis
-        if (clipYMin > 0) p.push(new THREE.Plane(new THREE.Vector3(0, 1, 0), -(clipYMin / 100) * maxDist));
-        if (clipYMax < 100) p.push(new THREE.Plane(new THREE.Vector3(0, -1, 0), (clipYMax / 100) * maxDist));
+        structureData.atoms.forEach(a => {
+            const [x, y, z] = a.position;
+            minLocalX = Math.min(minLocalX, x); maxLocalX = Math.max(maxLocalX, x);
+            minLocalY = Math.min(minLocalY, y); maxLocalY = Math.max(maxLocalY, y);
+            minLocalZ = Math.min(minLocalZ, z); maxLocalZ = Math.max(maxLocalZ, z);
+        });
 
-        // Z Axis
-        if (clipZMin > 0) p.push(new THREE.Plane(new THREE.Vector3(0, 0, 1), -(clipZMin / 100) * maxDist));
-        if (clipZMax < 100) p.push(new THREE.Plane(new THREE.Vector3(0, 0, -1), (clipZMax / 100) * maxDist));
+        const dx = maxLocalX - minLocalX;
+        const dy = maxLocalY - minLocalY;
+        const dz = maxLocalZ - minLocalZ;
+
+        // The entire model is shifted by sceneCenterOffset in world space
+        const [offX, offY, offZ] = sceneCenterOffset;
+
+        // helper to get world coordinate from local normalize ratio
+        const getWorldCoord = (min: number, delta: number, ratio: number, offset: number) => {
+            return (min + delta * ratio / 100) + offset;
+        };
+
+        if (clipXMin > 0) p.push(new THREE.Plane(new THREE.Vector3(1, 0, 0), -getWorldCoord(minLocalX, dx, clipXMin, offX)));
+        if (clipXMax < 100) p.push(new THREE.Plane(new THREE.Vector3(-1, 0, 0), getWorldCoord(minLocalX, dx, clipXMax, offX)));
+        if (clipYMin > 0) p.push(new THREE.Plane(new THREE.Vector3(0, 1, 0), -getWorldCoord(minLocalY, dy, clipYMin, offY)));
+        if (clipYMax < 100) p.push(new THREE.Plane(new THREE.Vector3(0, -1, 0), getWorldCoord(minLocalY, dy, clipYMax, offY)));
+        if (clipZMin > 0) p.push(new THREE.Plane(new THREE.Vector3(0, 0, 1), -getWorldCoord(minLocalZ, dz, clipZMin, offZ)));
+        if (clipZMax < 100) p.push(new THREE.Plane(new THREE.Vector3(0, 0, -1), getWorldCoord(minLocalZ, dz, clipZMax, offZ)));
 
         return p;
-    }, [clipXMin, clipXMax, clipYMin, clipYMax, clipZMin, clipZMax]);
+    }, [structureData.atoms, sceneCenterOffset, clipXMin, clipXMax, clipYMin, clipYMax, clipZMin, clipZMax]);
 
-    // Apply lighting to Three scene via refs
-    useEffect(() => {
-        // Lighting intensity is handled via App.tsx props pass
-    }, [keyIntensity, fillIntensity, rimIntensity, ambientIntensity]);
-
-    // Custom rotation axis handling
-    // Note: OrbitControls auto-rotate always rotates around Y axis
-    // Rotating the entire scene causes visual jumps, so we keep it simple
-    // Users can manually rotate the view to see different perspectives
-
-    // Camera reset handler
-    useEffect(() => {
-        const handleReset = () => {
-            if (orbitRef.current) {
-                orbitRef.current.reset();
-            }
-        };
-        window.addEventListener('reset-camera', handleReset);
-        return () => window.removeEventListener('reset-camera', handleReset);
-    }, []);
-
-    // High-res snapshot handler with useThree access
-    const { gl, scene, camera } = useThree();
-
-    useEffect(() => {
-        const handleHighResSnapshot = (e: any) => {
-            const { transparent, resolution = 2 } = e.detail || {};
-
-            try {
-                // Store ALL background-related elements
-                const originalBackground = scene.background;
-                const originalFog = scene.fog;
-                const originalEnvironment = scene.environment;
-
-                // Apply transparent background if requested
-                if (transparent) {
-                    scene.background = null;
-                    scene.fog = null;
-                    scene.environment = null;
-                }
-
-                // Capture using utility - WYSIWYG (What You See Is What You Get)
-                // We use the current camera exactly as is, to preserve the user's specific angle and composition.
-                if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
-                    captureHighRes(gl, scene, camera as THREE.PerspectiveCamera, {
-                        resolution: resolution,
-                        transparent: transparent || false,
-                        autoFrame: false, // Disable auto-framing
-                        filename: `cathode-${material}-${resolution}x-${Date.now()}.png`
-                    });
-                } else {
-                    console.warn('Snapshot only supports PerspectiveCamera');
-                    alert('Snapshot failed: Camera type not supported.');
-                }
-
-                // Restore ALL original states
-                scene.background = originalBackground;
-                scene.fog = originalFog;
-                scene.environment = originalEnvironment;
-            } catch (error) {
-                console.error('High-res snapshot failed:', error);
-                alert('Snapshot failed. Check console.');
-            }
+    // Material definitions based on preset
+    const materialProps = useMemo(() => {
+        const base = {
+            roughness: 0.2,
+            metalness: 0.5,
+            clearcoat: 1.0,
+            transmission: 0,
+            ior: 1.5,
+            thickness: 0,
+            emissiveIntensity: 0
         };
 
-        window.addEventListener('high-res-snapshot', handleHighResSnapshot);
-        return () => window.removeEventListener('high-res-snapshot', handleHighResSnapshot);
-    }, [gl, scene, camera, material]);
+        if (preset === 'Ceramic') return { ...base, roughness: 0.1, metalness: 0.1, clearcoat: 0.8 };
+        if (preset === 'Metallic') return { ...base, roughness: 0.2, metalness: 0.9, clearcoat: 1.0 };
+        if (preset === 'Matte') return { ...base, roughness: 1.0, metalness: 0.0, clearcoat: 0 };
+        if (preset === 'Glass') return { ...base, roughness: 0, metalness: 0, transmission: 1.0, ior: 1.5, thickness: 2.0, transparent: true, opacity: 0.5 };
+        if (preset === 'Plastic') return { ...base, roughness: 0.4, metalness: 0.0, clearcoat: 0.5 };
+        if (preset === 'Emissive') return { ...base, roughness: 0.5, metalness: 0, emissiveIntensity: 2.0 };
+        if (preset === 'Custom') return { roughness, metalness, clearcoat, transmission, ior, thickness, emissiveIntensity };
 
-    const effects = [];
-    if (enableSSAO) effects.push(<SSAO key="ssao" intensity={ssaoIntensity} radius={0.03} luminanceInfluence={0.5} />);
-    if (enableBloom) effects.push(<Bloom key="bloom" intensity={0.5} luminanceThreshold={0.85} radius={0.6} mipmapBlur />);
+        return base;
+    }, [preset, roughness, metalness, clearcoat, transmission, ior, thickness, emissiveIntensity]);
+
 
     return (
         <ErrorBoundary name="StructureScene">
@@ -460,10 +496,12 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, li
                 keyIntensity: lightingValues.key,
                 fillIntensity: lightingValues.fill,
                 rimIntensity: lightingValues.rim,
-                ambientIntensity: lightingValues.ambient
+                ambientIntensity: lightingValues.ambient,
+                aoIntensity,
+                aoRadius,
+                aoDistanceFalloff,
+                aoColor
             }}>
-                <color attach="background" args={['#f8f9fa']} />
-                {enableFog && <fog attach="fog" args={['#f8f9fa', fogNear, fogFar]} />}
 
                 {/* Backlight for Rim Effect */}
                 <directionalLight position={[0, 5, -10]} intensity={backlightIntensity} color="#ffffff" />
@@ -471,28 +509,8 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, li
 
                 <Environment preset={lightingValues.env as any} blur={0.6} />
 
-                {/* Li Animation - OUTSIDE Center to prevent affecting rotation center */}
-                <group position={centerOffset}>
-                    <LiAnimation
-                        liAtoms={structureData.atoms.filter(a => a.element === 'Li')}
-                        isAnimating={liAnimating}
-                        liColor={elementSettings['Li']?.color || ELEMENT_COLORS['Li'] || '#0277BD'}
-                        liRadius={(ELEMENT_RADII['Li'] || 0.36) * radiusScale * (elementSettings['Li']?.scale || 1)}
-                        materialId={material}
-                        materialProps={materialProps}
-                    />
-                </group>
-
-                <Center
-                    key={material}
-                    position={[0, isMobile ? 2.0 : 0, 0]}
-                    onCentered={(props) => {
-                        if (props?.container) {
-                            const pos = props.container.position;
-                            setCenterOffset([pos.x, pos.y + (isMobile ? 2.0 : 0), pos.z]);
-                        }
-                    }}
-                >
+                {/* Apply manual center offset to the entire group */}
+                <group position={sceneCenterOffset}>
                     <group ref={groupRef}>
                         <Atoms
                             atoms={structureData.atoms}
@@ -501,6 +519,19 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, li
                             elementSettings={elementSettings}
                             materialProps={materialProps}
                             liAnimating={liAnimating}
+                            enableEthereal={enableEthereal}
+                        />
+
+                        {/* Li Charge/Discharge Animation */}
+                        <LiAnimation
+                            liAtoms={structureData.atoms.filter(a => a.element === 'Li')}
+                            isAnimating={liAnimating}
+                            liColor={elementSettings['Li']?.color || ELEMENT_COLORS['Li'] || '#0277BD'}
+                            liRadius={(ELEMENT_RADII['Li'] || 0.36) * radiusScale * (elementSettings['Li']?.scale || 1)}
+                            materialId={material}
+                            materialProps={materialProps}
+                            clippingPlanes={planes}
+                            enableEthereal={enableEthereal}
                         />
 
                         <Polyhedra
@@ -510,24 +541,21 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, li
                             clippingPlanes={planes}
                             elementSettings={elementSettings}
                         />
-                        {showAxes && <LabeledAxes size={5} />}
                     </group>
-                </Center>
+                </group>
 
-                {/* Post Processing Effects */}
-                {effects.length > 0 && (
-                    <EffectComposer>
-                        {effects}
-                    </EffectComposer>
-                )}
+                {/* LabeledAxes outside offset group to show true rotation center (World Origin) */}
+                {showAxes && <LabeledAxes size={5} />}
             </group>
 
             <OrbitControls
+                key={`orbit-${material}`}
                 ref={orbitRef}
                 makeDefault
                 autoRotate={autoRotate}
-                autoRotateSpeed={autoRotateSpeed}
+                autoRotateSpeed={1.0}
                 dampingFactor={0.05}
+                target={[0, isMobile ? 2.0 : 0, 0]}
             />
         </ErrorBoundary>
     );

@@ -1,7 +1,7 @@
-﻿import { Suspense, useRef, useState, useEffect } from 'react'
+﻿import { Suspense, useRef, useState, useEffect, useCallback } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, ContactShadows } from '@react-three/drei'
-import { EffectComposer, Bloom, Vignette, SSAO } from '@react-three/postprocessing'
+import { EffectComposer, Bloom, Vignette, N8AO } from '@react-three/postprocessing'
 import { Leva } from 'leva'
 import { StructureScene, ExportButton } from './components/scene/StructureScene'
 import { ErrorBoundary } from './components/UI/ErrorBoundary'
@@ -76,15 +76,36 @@ function App() {
   const [showBackground, setShowBackground] = useState(true);
   const [elementColors, setElementColors] = useState<Record<string, string>>({});
   const [liAnimating, setLiAnimating] = useState(false); // Li charge/discharge animation
+  const [visualSettings, setVisualSettings] = useState<any>({
+    enableBloom: true,
+    enableFog: true,
+    fogNear: 10,
+    fogFar: 80,
+    backlightIntensity: 2.0,
+    aoIntensity: 1.0,
+    aoRadius: 5.0,
+    aoDistanceFalloff: 1.0,
+    aoColor: '#000000'
+  });
+
+  // Handler for visual settings changes
+  const handleVisualSettingsChange = useCallback((settings: any) => {
+    setVisualSettings(settings);
+  }, []);
 
   // Handler for element settings changes from StructureScene
-  const handleElementSettingsChange = (settings: Record<string, { visible: boolean; scale: number; color: string }>) => {
-    const colors: Record<string, string> = {};
-    for (const [element, data] of Object.entries(settings)) {
-      colors[element] = data.color;
-    }
-    setElementColors(colors);
-  };
+  // Use useCallback to prevent infinite render loops when passed as prop
+  const handleElementSettingsChange = useCallback((settings: Record<string, { visible: boolean; scale: number; color: string }>) => {
+    setElementColors(prev => {
+      const colors: Record<string, string> = {};
+      let changed = false;
+      for (const [element, data] of Object.entries(settings)) {
+        colors[element] = data.color;
+        if (prev[element] !== data.color) changed = true;
+      }
+      return changed ? colors : prev;
+    });
+  }, []);
 
   const handleResetCamera = () => {
     const event = new CustomEvent('reset-camera');
@@ -141,11 +162,13 @@ function App() {
     });
   };
 
+  // Reset animation when material changes
   useEffect(() => {
-    const handleSpaceGroupUpdate = (e: any) => {
-      setSpaceGroupInfo(e.detail);
-    };
+    setLiAnimating(false);
+  }, [currentStructure]);
 
+  // Handle Snapshot requests via events
+  useEffect(() => {
     const handleSnapshotRequest = (e: any) => {
       const { transparent, resolution = 1 } = e.detail || {};
 
@@ -165,14 +188,13 @@ function App() {
       }
     };
 
-    window.addEventListener('space-group-update', handleSpaceGroupUpdate);
     window.addEventListener('snapshot-request', handleSnapshotRequest);
-
     return () => {
-      window.removeEventListener('space-group-update', handleSpaceGroupUpdate);
       window.removeEventListener('snapshot-request', handleSnapshotRequest);
     };
   }, [currentStructure]);
+
+  // Space Group Info now handled directly via onSpaceGroupUpdate prop instead of event duplicate
 
   return (
     <ErrorBoundary name="App Root">
@@ -351,14 +373,15 @@ function App() {
       }}>
         <Canvas
           ref={canvasRef}
-          camera={{ position: [20, 15, 50], fov: 45 }}
+          camera={{ position: [30, 20, 80], fov: 45 }}
           dpr={[1, 2]}
           gl={{
-            antialias: true,
+            antialias: false, // Disable native AA allowing Composer to handle it & prevent context conflict
             alpha: true,
             toneMappingExposure: 1.0,
             localClippingEnabled: true,
-            preserveDrawingBuffer: true
+            preserveDrawingBuffer: true,
+            powerPreference: "high-performance"
           }}
           onCreated={() => {
             setShowExport(true);
@@ -367,19 +390,30 @@ function App() {
           {showBackground && <color attach="background" args={['#0a0a0a']} />}
           <Environment preset="studio" environmentIntensity={0.4} backgroundBlurriness={0.8} />
           <DynamicLights />
+          {visualSettings.enableFog && <fog attach="fog" args={['#0a0a0a', visualSettings.fogNear, visualSettings.fogFar]} />}
           <Suspense fallback={null}>
             <StructureScene
               onSpaceGroupUpdate={setSpaceGroupInfo}
               onElementSettingsChange={handleElementSettingsChange}
+              onVisualSettingsChange={handleVisualSettingsChange}
               liAnimating={liAnimating}
               isMobile={isMobile}
             />
           </Suspense>
           <ContactShadows position={[0, -2.5, 0]} opacity={0.15} scale={25} blur={3} far={4} />
-          <EffectComposer>
-            <Bloom luminanceThreshold={0.9} mipmapBlur intensity={0.4} radius={0.6} levels={8} />
-            <Vignette eskil={false} offset={0.05} darkness={0.7} />
-            <SSAO radius={0.3} intensity={20} luminanceInfluence={0.6} />
+          <EffectComposer multisampling={0} enableNormalPass>
+            {visualSettings.enableBloom && <Bloom luminanceThreshold={0.9} mipmapBlur intensity={0.5} radius={0.6} />}
+            <N8AO
+              intensity={visualSettings.aoIntensity}
+              aoRadius={visualSettings.aoRadius}
+              distanceFalloff={visualSettings.aoDistanceFalloff}
+              color={visualSettings.aoColor}
+              screenSpaceRadius={false}
+              halfRes={false}
+              depthAwareUpsampling={true}
+            />
+            {/* Reduced Vignette to prevent dark screen issues */}
+            <Vignette eskil={false} offset={0.1} darkness={0.2} />
           </EffectComposer>
         </Canvas>
       </div>

@@ -4,7 +4,6 @@ import type { Atom } from '../../core/types';
 import { ELEMENT_COLORS, ELEMENT_RADII } from '../../core/constants/materials';
 import * as THREE from 'three';
 import { EtherealAtomsGroup } from './EtherealAtomsGroup';
-import { useControls } from 'leva';
 
 interface AtomProps {
   atoms: Atom[];
@@ -13,6 +12,7 @@ interface AtomProps {
   elementSettings?: { [key: string]: { scale: number; visible: boolean; color: string } };
   materialProps?: any;
   liAnimating?: boolean; // When true, Li atoms are rendered by LiAnimation instead
+  enableEthereal?: boolean;
 }
 
 const defaultMaterialProps = {
@@ -32,12 +32,9 @@ export const Atoms = ({
   radiusScale = 1.0,
   elementSettings = {},
   materialProps = defaultMaterialProps,
-  liAnimating = false
+  liAnimating = false,
+  enableEthereal = false
 }: AtomProps) => {
-
-  const { enableEthereal } = useControls('⚛️ Ethereal Effects', {
-    enableEthereal: { value: false, label: 'Enable Cloud (Li/Na)' }
-  });
 
   const { groups, etherealGroups } = useMemo(() => {
     const standard: { [element: string]: Atom[] } = {};
