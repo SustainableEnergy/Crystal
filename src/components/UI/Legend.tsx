@@ -46,7 +46,7 @@ export const Legend = ({ material, isMobile = false, customColors }: LegendProps
             zIndex: 10,
             pointerEvents: 'none', // Allow clicking through
             border: '1px solid rgba(255,255,255,0.1)',
-            maxWidth: '90vw'
+            maxWidth: isMobile ? '95vw' : '90vw'
         }}>
             {elementsToShow.map(el => (
                 <div key={el} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

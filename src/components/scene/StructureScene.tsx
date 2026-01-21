@@ -10,6 +10,7 @@ import { parseCIF } from '../../core/utils/CIFParser';
 import { Atoms } from './Atoms';
 import { Polyhedra } from './Polyhedra';
 import { LiAnimation } from './LiAnimation';
+import { LabeledAxes } from './LabeledAxes';
 import { Center, OrbitControls, Environment } from '@react-three/drei';
 import { EffectComposer, SSAO, Bloom } from '@react-three/postprocessing';
 import { exportScene } from '../../core/utils/Exporter';
@@ -499,7 +500,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, li
                             clippingPlanes={planes}
                             elementSettings={elementSettings}
                         />
-                        {showAxes && <axesHelper args={[5]} />}
+                        {showAxes && <LabeledAxes size={5} />}
                     </group>
                 </Center>
 
