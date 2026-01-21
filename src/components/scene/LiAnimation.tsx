@@ -1,12 +1,15 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { getLiAnimationConfig, type LiAnimationConfig } from '../../core/constants/materials';
 
 interface LiAnimationProps {
     liAtoms: Array<{ id: string; position: [number, number, number] }>;
     isAnimating: boolean;
     liColor: string;
     liRadius: number;
+    materialId: string;
+    materialProps?: any; // User's material settings
 }
 
 // Animation cycle: 4s charge + 3s pause + 4s discharge + 3s pause = 14s total
@@ -14,59 +17,101 @@ const CHARGE_DURATION = 4;
 const PAUSE_DURATION = 3;
 const CYCLE_DURATION = (CHARGE_DURATION + PAUSE_DURATION) * 2; // 14 seconds
 
-export const LiAnimation = ({ liAtoms, isAnimating, liColor, liRadius }: LiAnimationProps) => {
+// Generate random direction based on migration axis
+// Note: In Three.js, Y is up. Crystal's "xy plane" maps to XZ in Three.js
+// Crystal's "z axis" maps to Y in Three.js
+const getRandomDirection = (axis: LiAnimationConfig['migrationAxis']): THREE.Vector3 => {
+    switch (axis) {
+        case 'xy':
+            // XY plane in crystal = XZ plane in Three.js (horizontal)
+            const angleXY = Math.random() * Math.PI * 2;
+            return new THREE.Vector3(Math.cos(angleXY), 0, Math.sin(angleXY)).normalize();
+        case 'z':
+            // Z axis in crystal = Y axis in Three.js (vertical)
+            return new THREE.Vector3(0, Math.random() > 0.5 ? 1 : -1, 0);
+        case 'xyz':
+        default:
+            return new THREE.Vector3(
+                Math.random() - 0.5,
+                Math.random() - 0.5,
+                Math.random() - 0.5
+            ).normalize();
+    }
+};
+
+const defaultMaterialProps = {
+    roughness: 0.15,
+    metalness: 0.5,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.1,
+};
+
+export const LiAnimation = ({
+    liAtoms,
+    isAnimating,
+    liColor,
+    liRadius,
+    materialId,
+    materialProps = defaultMaterialProps
+}: LiAnimationProps) => {
     const groupRef = useRef<THREE.Group>(null);
-    const particlesRef = useRef<THREE.Points>(null);
     const startTimeRef = useRef<number | null>(null);
 
-    // Create particle geometry for flying effect
-    const { particlePositions, particleVelocities, originalPositions } = useMemo(() => {
-        const positions: number[] = [];
-        const velocities: number[] = [];
-        const originals: number[] = [];
+    // Get animation config for this material
+    const animConfig = useMemo(() => getLiAnimationConfig(materialId), [materialId]);
 
-        // 10 particles per Li atom for trail effect
-        const particlesPerAtom = 10;
+    // Determine which Li atoms will move (based on extraction rate)
+    const { movingAtomIndices, atomDirections } = useMemo(() => {
+        const numToMove = Math.floor(liAtoms.length * animConfig.extractionRate);
 
-        liAtoms.forEach(atom => {
-            for (let i = 0; i < particlesPerAtom; i++) {
-                // Start at atom position
-                positions.push(atom.position[0], atom.position[1], atom.position[2]);
-                originals.push(atom.position[0], atom.position[1], atom.position[2]);
+        // Create shuffled indices
+        const indices = liAtoms.map((_, i) => i);
+        for (let i = indices.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [indices[i], indices[j]] = [indices[j], indices[i]];
+        }
 
-                // Random upward velocity with some spread
-                velocities.push(
-                    (Math.random() - 0.5) * 2,  // X spread
-                    Math.random() * 3 + 2,      // Y upward (2-5)
-                    (Math.random() - 0.5) * 2   // Z spread
-                );
-            }
-        });
+        // Select first numToMove indices as moving atoms
+        const movingSet = new Set(indices.slice(0, numToMove));
+
+        // Generate directions for each moving atom
+        const directions: THREE.Vector3[] = liAtoms.map(() =>
+            getRandomDirection(animConfig.migrationAxis)
+        );
 
         return {
-            particlePositions: new Float32Array(positions),
-            particleVelocities: velocities,
-            originalPositions: originals
+            movingAtomIndices: movingSet,
+            atomDirections: directions
         };
-    }, [liAtoms]);
+    }, [liAtoms, animConfig, materialId]);
+
+    // Reset on animation stop
+    useEffect(() => {
+        if (!isAnimating && groupRef.current) {
+            groupRef.current.children.forEach((child, i) => {
+                if (child instanceof THREE.Mesh) {
+                    child.position.set(...liAtoms[i].position);
+                    if (child.material instanceof THREE.MeshPhysicalMaterial) {
+                        child.material.opacity = 1;
+                    }
+                }
+            });
+        }
+    }, [isAnimating, liAtoms]);
 
     // Calculate animation state (0 = gone, 1 = present)
     const getAnimationState = (elapsed: number): { t: number; phase: 'charging' | 'charged' | 'discharging' | 'discharged' } => {
         const cycleTime = elapsed % CYCLE_DURATION;
 
         if (cycleTime < CHARGE_DURATION) {
-            // Charging: Li leaving (1 → 0)
             const progress = cycleTime / CHARGE_DURATION;
             return { t: 1 - progress, phase: 'charging' };
         } else if (cycleTime < CHARGE_DURATION + PAUSE_DURATION) {
-            // Charged state: Li gone
             return { t: 0, phase: 'charged' };
         } else if (cycleTime < CHARGE_DURATION * 2 + PAUSE_DURATION) {
-            // Discharging: Li returning (0 → 1)
             const progress = (cycleTime - CHARGE_DURATION - PAUSE_DURATION) / CHARGE_DURATION;
             return { t: progress, phase: 'discharging' };
         } else {
-            // Discharged state: Li present
             return { t: 1, phase: 'discharged' };
         }
     };
@@ -82,96 +127,56 @@ export const LiAnimation = ({ liAtoms, isAnimating, liColor, liRadius }: LiAnima
         }
 
         const elapsed = state.clock.elapsedTime - startTimeRef.current;
-        const { t, phase } = getAnimationState(elapsed);
+        const { t } = getAnimationState(elapsed);
 
-        // Animate Li atoms (scale and opacity)
         if (groupRef.current) {
             groupRef.current.children.forEach((child, i) => {
                 if (child instanceof THREE.Mesh) {
-                    // Scale: shrink when leaving
-                    child.scale.setScalar(t);
+                    const isMoving = movingAtomIndices.has(i);
 
-                    // Position: float upward when leaving
-                    const originalY = liAtoms[i]?.position[1] || 0;
-                    const flyHeight = (1 - t) * 5; // Fly up to 5 units
-                    child.position.y = originalY + flyHeight;
+                    if (isMoving) {
+                        const originalPos = liAtoms[i].position;
+                        const direction = atomDirections[i];
+                        const distance = (1 - t) * animConfig.migrationDistance;
 
-                    // Opacity
-                    if (child.material instanceof THREE.MeshPhysicalMaterial) {
-                        child.material.transparent = true;
-                        child.material.opacity = t;
+                        child.position.set(
+                            originalPos[0] + direction.x * distance,
+                            originalPos[1] + direction.y * distance,
+                            originalPos[2] + direction.z * distance
+                        );
+
+                        // Fade out: stays visible until 50% progress, then fades
+                        if (child.material instanceof THREE.MeshPhysicalMaterial) {
+                            child.material.transparent = true;
+                            const fadeProgress = t < 0.5 ? t * 2 : 1;
+                            child.material.opacity = fadeProgress;
+                        }
+                    } else {
+                        child.position.set(...liAtoms[i].position);
+                        if (child.material instanceof THREE.MeshPhysicalMaterial) {
+                            child.material.opacity = 1;
+                        }
                     }
                 }
             });
-        }
-
-        // Animate particles (flying away effect during charging)
-        if (particlesRef.current && phase === 'charging') {
-            const positions = particlesRef.current.geometry.attributes.position.array as Float32Array;
-            const particlesPerAtom = 10;
-
-            for (let i = 0; i < liAtoms.length; i++) {
-                for (let j = 0; j < particlesPerAtom; j++) {
-                    const idx = (i * particlesPerAtom + j) * 3;
-                    const velIdx = idx;
-
-                    // Particles fly upward
-                    positions[idx] += particleVelocities[velIdx] * 0.02;
-                    positions[idx + 1] += particleVelocities[velIdx + 1] * 0.02;
-                    positions[idx + 2] += particleVelocities[velIdx + 2] * 0.02;
-                }
-            }
-            particlesRef.current.geometry.attributes.position.needsUpdate = true;
-        }
-
-        // Reset particles when discharging starts
-        if (phase === 'discharging' && particlesRef.current) {
-            const positions = particlesRef.current.geometry.attributes.position.array as Float32Array;
-            for (let i = 0; i < originalPositions.length; i++) {
-                positions[i] = originalPositions[i];
-            }
-            particlesRef.current.geometry.attributes.position.needsUpdate = true;
         }
     });
 
     if (!isAnimating || liAtoms.length === 0) return null;
 
     return (
-        <group>
-            {/* Li atoms as spheres */}
-            <group ref={groupRef}>
-                {liAtoms.map((atom) => (
-                    <mesh key={atom.id} position={atom.position}>
-                        <sphereGeometry args={[liRadius, 32, 32]} />
-                        <meshPhysicalMaterial
-                            color={liColor}
-                            transparent
-                            opacity={1}
-                            roughness={0.15}
-                            metalness={0.5}
-                            clearcoat={1.0}
-                        />
-                    </mesh>
-                ))}
-            </group>
-
-            {/* Particle trail effect */}
-            <points ref={particlesRef}>
-                <bufferGeometry>
-                    <bufferAttribute
-                        attach="attributes-position"
-                        args={[particlePositions, 3]}
+        <group ref={groupRef}>
+            {liAtoms.map((atom) => (
+                <mesh key={atom.id} position={atom.position}>
+                    <sphereGeometry args={[liRadius, 32, 32]} />
+                    <meshPhysicalMaterial
+                        color={liColor}
+                        transparent
+                        opacity={1}
+                        {...materialProps}
                     />
-                </bufferGeometry>
-                <pointsMaterial
-                    color={liColor}
-                    size={0.15}
-                    transparent
-                    opacity={0.6}
-                    sizeAttenuation
-                    blending={THREE.AdditiveBlending}
-                />
-            </points>
+                </mesh>
+            ))}
         </group>
     );
 };

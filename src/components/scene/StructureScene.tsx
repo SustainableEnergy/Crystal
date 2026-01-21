@@ -488,6 +488,8 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, li
                             isAnimating={liAnimating}
                             liColor={elementSettings['Li']?.color || ELEMENT_COLORS['Li'] || '#0277BD'}
                             liRadius={(ELEMENT_RADII['Li'] || 0.36) * radiusScale * (elementSettings['Li']?.scale || 1)}
+                            materialId={material}
+                            materialProps={materialProps}
                         />
 
                         <Polyhedra

@@ -33,29 +33,26 @@ export const MobileHeader = ({
             padding: '0 8px',
             zIndex: 1000,
             boxShadow: '0 2px 10px rgba(0, 0, 0, 0.3)',
-            gap: '6px'
+            gap: '4px'
         }}>
-            {/* Left: Structure Selector */}
+            {/* Structure Selector */}
             <button
                 onClick={onToggleStructureSelector}
                 style={{
                     background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.25) 0%, rgba(118, 75, 162, 0.25) 100%)',
                     border: '2px solid rgba(102, 126, 234, 0.4)',
                     borderRadius: '8px',
-                    padding: '8px 12px',
+                    padding: '8px 10px',
                     color: '#FFF8F0',
-                    fontSize: '12px',
+                    fontSize: '11px',
                     fontWeight: '700',
                     cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
                     minHeight: '40px',
                     boxShadow: '0 2px 8px rgba(102, 126, 234, 0.2)',
                     transition: 'all 0.2s ease'
                 }}
             >
-                📊
+                Structure
             </button>
 
             {/* Li Animation Toggle */}
@@ -68,9 +65,9 @@ export const MobileHeader = ({
                             : 'rgba(255, 255, 255, 0.05)',
                         border: liAnimating ? '2px solid rgba(16, 185, 129, 0.6)' : '2px solid rgba(102, 126, 234, 0.3)',
                         borderRadius: '8px',
-                        padding: '8px 12px',
+                        padding: '8px 10px',
                         color: '#FFF8F0',
-                        fontSize: '12px',
+                        fontSize: '11px',
                         fontWeight: '700',
                         cursor: 'pointer',
                         minHeight: '40px',
@@ -78,11 +75,11 @@ export const MobileHeader = ({
                         transition: 'all 0.2s ease'
                     }}
                 >
-                    🔋
+                    {liAnimating ? 'Stop' : 'Li Cycle'}
                 </button>
             )}
 
-            {/* Center: Space Group Toggle */}
+            {/* Space Group Toggle */}
             <button
                 onClick={onToggleSpaceGroup}
                 style={{
@@ -91,9 +88,9 @@ export const MobileHeader = ({
                         : 'rgba(255, 255, 255, 0.05)',
                     border: spaceGroupOpen ? '2px solid rgba(102, 126, 234, 0.5)' : '2px solid rgba(102, 126, 234, 0.3)',
                     borderRadius: '8px',
-                    padding: '8px 12px',
+                    padding: '8px 10px',
                     color: '#FFF8F0',
-                    fontSize: '12px',
+                    fontSize: '11px',
                     fontWeight: '700',
                     cursor: 'pointer',
                     minHeight: '40px',
@@ -104,7 +101,7 @@ export const MobileHeader = ({
                 Info
             </button>
 
-            {/* Right: Controls Toggle */}
+            {/* Controls Toggle */}
             <button
                 onClick={onToggleControls}
                 style={{
@@ -113,20 +110,17 @@ export const MobileHeader = ({
                         : 'rgba(255, 255, 255, 0.05)',
                     border: controlsOpen ? '2px solid rgba(102, 126, 234, 0.5)' : '2px solid rgba(102, 126, 234, 0.3)',
                     borderRadius: '8px',
-                    padding: '8px 12px',
+                    padding: '8px 10px',
                     color: '#FFF8F0',
-                    fontSize: '12px',
+                    fontSize: '11px',
                     fontWeight: '700',
                     cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
                     minHeight: '40px',
                     boxShadow: controlsOpen ? '0 2px 8px rgba(102, 126, 234, 0.3)' : 'none',
                     transition: 'all 0.2s ease'
                 }}
             >
-                ⚙️
+                Controls
             </button>
         </div>
     );

@@ -148,3 +148,39 @@ export const MATERIAL_ELEMENTS: Record<string, string[]> = {
     'LCO': ['Li', 'Co', 'O'],
 };
 
+// Li Animation Configuration per Material Family
+export interface LiAnimationConfig {
+    migrationAxis: 'xy' | 'z' | 'xyz';  // Allowed Li movement direction
+    extractionRate: number;              // Percentage of Li that leaves (0-1)
+    migrationDistance: number;           // How far Li moves before disappearing (in Angstroms)
+}
+
+export const LI_ANIMATION_CONFIG: Record<string, LiAnimationConfig> = {
+    'NCM': {
+        migrationAxis: 'xy',      // Li migrates in xy plane (layered structure)
+        extractionRate: 0.60,     // 60% Li extracted
+        migrationDistance: 8,
+    },
+    'LFP': {
+        migrationAxis: 'z',       // Li migrates along z axis (1D channels)
+        extractionRate: 0.85,     // 85% Li extracted
+        migrationDistance: 10,
+    },
+    'LMFP': {
+        migrationAxis: 'z',       // Same as LFP
+        extractionRate: 0.85,
+        migrationDistance: 10,
+    },
+    'LCO': {
+        migrationAxis: 'xy',      // Layered like NCM
+        extractionRate: 0.50,
+        migrationDistance: 8,
+    },
+};
+
+// Helper to get Li animation config from material ID
+export const getLiAnimationConfig = (materialId: string): LiAnimationConfig => {
+    const family = getMaterialFamily(materialId);
+    return LI_ANIMATION_CONFIG[family] || LI_ANIMATION_CONFIG['NCM']; // Default to NCM
+};
+

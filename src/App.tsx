@@ -232,7 +232,7 @@ function App() {
                 boxShadow: liAnimating ? '0 4px 15px rgba(16, 185, 129, 0.4)' : 'none'
               }}
             >
-              {liAnimating ? '🔋 Animating' : '🔋 Li Cycle'}
+              {liAnimating ? 'Stop Li' : 'Li Cycle'}
             </button>
             <StructureSelector
               currentStructure={currentStructure}
