@@ -133,14 +133,14 @@ export const LiAnimation = ({
 
         const numToMove = Math.floor(liAtoms.length * animConfig.extractionRate);
 
-        // Sort by distance (outer first) and pick top numToMove
-        const sortedIndices = distances
-            .map((d, i) => ({ d, i }))
-            .sort((a, b) => b.d - a.d) // Outer first
-            .slice(0, numToMove)
-            .map(x => x.i);
-
-        const movingSet = new Set(sortedIndices);
+        // RANDOM selection of which atoms move (not distance-based)
+        const indices = liAtoms.map((_, i) => i);
+        // Fisher-Yates shuffle
+        for (let i = indices.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [indices[i], indices[j]] = [indices[j], indices[i]];
+        }
+        const movingSet = new Set(indices.slice(0, numToMove));
 
         // Calculate per-atom data
         const isMoving: boolean[] = [];
