@@ -5,10 +5,11 @@ import * as THREE from 'three';
 import { generateNCM } from '../../core/builders/NCMBuilder';
 import { generateLFP } from '../../core/builders/LFPBuilder';
 import { generateLMFP } from '../../core/builders/LMFPBuilder';
-import { MATERIALS, getMaterialFamily, MATERIAL_FAMILIES, ELEMENT_COLORS, ELEMENT_PRIORITY } from '../../core/constants/materials';
+import { MATERIALS, getMaterialFamily, MATERIAL_FAMILIES, ELEMENT_COLORS, ELEMENT_PRIORITY, ELEMENT_RADII } from '../../core/constants/materials';
 import { parseCIF } from '../../core/utils/CIFParser';
 import { Atoms } from './Atoms';
 import { Polyhedra } from './Polyhedra';
+import { LiAnimation } from './LiAnimation';
 import { Center, OrbitControls, Environment } from '@react-three/drei';
 import { EffectComposer, SSAO, Bloom } from '@react-three/postprocessing';
 import { exportScene } from '../../core/utils/Exporter';
@@ -82,10 +83,11 @@ const ElementController = ({
 interface StructureSceneProps {
     onSpaceGroupUpdate?: (info: any) => void;
     onElementSettingsChange?: (settings: Record<string, { visible: boolean; scale: number; color: string }>) => void;
+    liAnimating?: boolean; // When true, Li charge/discharge animation is active
     isMobile?: boolean;
 }
 
-export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, isMobile = false }: StructureSceneProps) => {
+export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, liAnimating = false, isMobile = false }: StructureSceneProps) => {
     const groupRef = useRef<THREE.Group>(null);
     const orbitRef = useRef<any>(null);
 
@@ -477,7 +479,17 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, is
                             radiusScale={radiusScale}
                             elementSettings={elementSettings}
                             materialProps={materialProps}
+                            liAnimating={liAnimating}
                         />
+
+                        {/* Li Charge/Discharge Animation */}
+                        <LiAnimation
+                            liAtoms={structureData.atoms.filter(a => a.element === 'Li')}
+                            isAnimating={liAnimating}
+                            liColor={elementSettings['Li']?.color || ELEMENT_COLORS['Li'] || '#0277BD'}
+                            liRadius={(ELEMENT_RADII['Li'] || 0.36) * radiusScale * (elementSettings['Li']?.scale || 1)}
+                        />
+
                         <Polyhedra
                             atoms={structureData.atoms}
                             visible={showPolyhedra}

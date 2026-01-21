@@ -75,6 +75,7 @@ function App() {
   const [currentStructure, setCurrentStructure] = useState('NCM-811');
   const [showBackground, setShowBackground] = useState(true);
   const [elementColors, setElementColors] = useState<Record<string, string>>({});
+  const [liAnimating, setLiAnimating] = useState(false); // Li charge/discharge animation
 
   // Handler for element settings changes from StructureScene
   const handleElementSettingsChange = (settings: Record<string, { visible: boolean; scale: number; color: string }>) => {
@@ -183,6 +184,8 @@ function App() {
           onToggleStructureSelector={() => setStructureSelectorOpen(!structureSelectorOpen)}
           spaceGroupOpen={spaceGroupOpen}
           controlsOpen={controlsOpen}
+          onToggleLiAnimation={() => setLiAnimating(!liAnimating)}
+          liAnimating={liAnimating}
         />
       )}
 
@@ -211,6 +214,26 @@ function App() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', pointerEvents: 'auto' }}>
+            {/* Li Animation Toggle - Desktop */}
+            <button
+              onClick={() => setLiAnimating(!liAnimating)}
+              style={{
+                padding: '10px 16px',
+                background: liAnimating
+                  ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                  : 'rgba(255, 255, 255, 0.08)',
+                border: liAnimating ? '2px solid #10b981' : '2px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: '8px',
+                color: 'white',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                boxShadow: liAnimating ? '0 4px 15px rgba(16, 185, 129, 0.4)' : 'none'
+              }}
+            >
+              {liAnimating ? '🔋 Animating' : '🔋 Li Cycle'}
+            </button>
             <StructureSelector
               currentStructure={currentStructure}
               onStructureChange={handleStructureChange}
@@ -348,6 +371,7 @@ function App() {
             <StructureScene
               onSpaceGroupUpdate={setSpaceGroupInfo}
               onElementSettingsChange={handleElementSettingsChange}
+              liAnimating={liAnimating}
               isMobile={isMobile}
             />
           </Suspense>

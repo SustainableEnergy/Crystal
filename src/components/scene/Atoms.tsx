@@ -13,6 +13,7 @@ interface AtomProps {
   // Per-element controls: { Li: { scale: 1, visible: true, color: '#...' }, ... }
   elementSettings?: { [key: string]: { scale: number; visible: boolean; color: string } };
   materialProps?: any;
+  liAnimating?: boolean; // When true, Li atoms are hidden (handled by LiAnimation)
 }
 
 const defaultMaterialProps = {
@@ -31,7 +32,8 @@ export const Atoms = ({
   clippingPlanes,
   radiusScale = 1.0,
   elementSettings = {},
-  materialProps = defaultMaterialProps
+  materialProps = defaultMaterialProps,
+  liAnimating = false
 }: AtomProps) => {
 
   const { enableEthereal } = useControls('⚛️ Ethereal Effects', {
@@ -91,6 +93,9 @@ export const Atoms = ({
       {Object.entries(etherealGroups).map(([element, elementAtoms]) => {
         const settings = elementSettings[element] || { scale: 1.0, visible: true, color: ELEMENT_COLORS[element] };
         if (settings.visible === false) return null;
+
+        // Skip Li atoms when animation is active (they are rendered by LiAnimation)
+        if (element === 'Li' && liAnimating) return null;
 
         const color = settings.color || ELEMENT_COLORS[element] || '#ccc';
 
