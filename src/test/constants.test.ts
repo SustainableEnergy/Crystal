@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { BOND_DISTANCE } from '../../core/constants/geometry';
+import { BOND_DISTANCE } from '../core/constants/geometry';
 
 describe('Geometry Constants', () => {
     it('should have correct bond distances', () => {
