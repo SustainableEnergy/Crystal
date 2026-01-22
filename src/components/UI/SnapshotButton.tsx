@@ -9,7 +9,10 @@ export const SnapshotButton = ({ isMobile = false }: SnapshotButtonProps) => {
 
     const handleClick = () => {
         const resolution = 2;
-        console.log('[SnapshotButton] Dispatching snapshot-request:', { transparent: transparentBg, resolution });
+
+        if (import.meta.env.DEV) {
+            console.log('[SnapshotButton] Dispatching snapshot-request:', { transparent: transparentBg, resolution });
+        }
 
         window.dispatchEvent(new CustomEvent('snapshot-request', {
             detail: {

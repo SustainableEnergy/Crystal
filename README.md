@@ -23,6 +23,7 @@
 - **단위 격자 반복** - 최대 10×10×10 슈퍼셀 생성
 - **자동 회전** - 역동적인 프레젠테이션을 위해 기본 활성화
 - **프리미엄 조명** - 스튜디오 품질의 조명 프리셋
+- **Li 충방전 애니메이션** - 배터리 충전/방전 과정 시각화 (실시간 토글)
 
 ### 📷 내보내기 및 캡처
 - **Snapshot** - 고해상도 PNG 스크린샷 저장
@@ -83,6 +84,7 @@ npm run build
 - **구조 선택**: 상단 중앙 드롭다운 메뉴
   - NCM 선택 시 비율(811/622/111) 서브메뉴 표시
   - 선택한 구조가 즉시 렌더링됨
+- **Li Cycle**: 상단 우측 버튼 (Li 충방전 애니메이션 토글)
 - **Snapshot**: 상단 우측 버튼
 - **공간군 정보**: 좌측 패널 (항상 표시)
 - **상세 컨트롤**: 우측 패널 (Unit Cell, 원소 설정 등)
@@ -92,6 +94,7 @@ npm run build
 ### 모바일
 - **헤더 버튼**:
   - Structure - 양극재 및 비율 선택
+  - Li Cycle - 충방전 애니메이션 토글
   - Info ▶ - 공간군 패널 토글
   - Controls - Leva 컨트롤 토글
 - **하단 버튼**:
@@ -103,6 +106,7 @@ npm run build
 - **스크롤**: 확대/축소
 - **우클릭 드래그**: 카메라 팬
 - **더블클릭**: 포커스 리셋
+- **스페이스바**: 자동 회전 On/Off
 
 ---
 
@@ -271,7 +275,66 @@ npm run build
 
 ---
 
-## 📝 최신 업데이트 (v1.2.0)
+## 📝 최신 업데이트 (v1.5.1)
+
+### v1.5.1 - UI 개선 및 Polyhedra 렌더링 최적화
+- 🎛️ **Clipping 컨트롤 간소화**:
+  - 6개 슬라이더(X/Y/Z Min/Max) → 3개 범위 슬라이더(X/Y/Z)로 통합
+  - Leva 범위 타입 지원 활용
+  - 더 직관적이고 간결한 UI
+- ✨ **Polyhedra 렌더링 개선**:
+  - meshStandardMaterial → meshBasicMaterial로 변경
+  - 조명의 과도한 영향 제거
+  - 일관된 색상 표현
+  - 더 깔끔한 시각적 품질
+
+### v1.5.0 - 시각 효과 최적화 및 간소화
+- 🎨 **Effect 정리 및 간소화**:
+  - Depth Fog 제거 (작은 결정 구조에 불필요)
+  - Leva panel의 Effects 섹션 통합 ("Premium AO" + "Beta" → "Effects")
+  - Vignette를 선택적으로 변경 (기본값 OFF)
+- 💎 **Polyhedra 재질 개선**:
+  - FresnelMaterial 제거, Standard Material로 교체
+  - 간결하고 유지보수 가능한 코드
+  - 투명도 및 렌더링 품질 개선 (opacity: 0.35, roughness: 0.7)
+- ✨ **Emissive 렌더링 수정**:
+  - Tone Mapping을 ACESFilmic으로 변경
+  - Tone Mapping Exposure를 1.2로 조정
+  - Emissive 효과가 제대로 보이도록 개선
+- 🐛 **Snapshot 기능 개선**:
+  - 이벤트 핸들러 의존성 수정
+  - 디버그 로그를 개발 환경에서만 출력
+- 🧹 **코드 정리**:
+  - 미사용 FresnelMaterial 관련 코드 제거
+  - 간결성과 유지보수성 향상
+
+### v1.4.1 - 코드 품질 및 타입 안전성 개선
+- 🔧 **프로젝트 이름 수정**: package.json의 철자 오류 수정 (crsytal → crystal)
+- 💎 **TypeScript 타입 안전성 강화**: 
+  - `any` 타입 제거 및 명시적 인터페이스 정의 (`VisualSettings`, `ElementSettings` 등)
+  - `@ts-ignore` 주석 제거 및 `FresnelMaterial` 타입 선언 추가
+  - `ErrorBoundary`의 `React.ErrorInfo` 타입 사용
+- 📐 **하드코딩 값 상수화**:
+  - UI 레이아웃 상수 분리 (`UI_LAYOUT`)
+  - 기하학적 상수 분리 (`BOND_DISTANCE`, `CAMERA`)
+  - 유지보수성 및 가독성 향상
+- ⚡ **성능 최적화**:
+  - 이벤트 핸들러에 `useCallback` 적용으로 불필요한 리렌더링 방지
+  - 메모이제이션 개선
+- 🐛 **디버그 코드 정리**: 
+  - 개발 환경에서만 console.log 실행 (`import.meta.env.DEV`)
+- 🧪 **테스트 인프라 구축**:
+  - Vitest 설정 및 첫 테스트 파일 추가
+  - `npm test`, `npm run test:ui` 스크립트 지원
+
+### v1.4.0 - Li 충방전 애니메이션 및 코드 정리
+- ✨ **Li 충방전 애니메이션**: 배터리 충전/방전 과정을 시각적으로 표현
+  - 데스크톱: 상단 우측 "Li Cycle" 버튼으로 토글
+  - 모바일: 헤더의 애니메이션 토글 버튼
+  - 리튬 이온의 삽입/탈리 과정을 실시간으로 시각화
+  - 재료별 동작: NCM/LCO는 층간, LFP/LMFP는 1차원 채널을 따라 이동
+- 🧹 **코드 정리**: 미사용 데모 파일 제거 및 프로젝트 구조 개선
+- 📚 **문서 개선**: 주요 기능 및 버전 히스토리 업데이트
 
 ### v1.3.2 - LMFP 구조 추가
 - ✨ **LMFP 구조 지원**: LiMn₀.₃₅Fe₀.₆₅PO₄ 올리빈 구조 추가

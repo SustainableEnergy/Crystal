@@ -21,7 +21,9 @@ const defaultMaterialProps = {
   clearcoat: 1.0,
   clearcoatRoughness: 0.1,
   opacity: 1,
-  transparent: false
+  transparent: false,
+  emissive: '#000000',
+  emissiveIntensity: 0
 };
 
 const ETHEREAL_TARGETS = ['Li', 'Na'];
@@ -76,6 +78,8 @@ export const Atoms = ({
               clipShadows
               {...defaultMaterialProps}
               {...materialProps}
+              emissive={materialProps?.emissive || defaultMaterialProps.emissive}
+              emissiveIntensity={materialProps?.emissiveIntensity ?? defaultMaterialProps.emissiveIntensity}
             />
             {elementAtoms.map((atom) => (
               <Instance key={atom.id} position={atom.position} />

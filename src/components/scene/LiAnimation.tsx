@@ -48,7 +48,7 @@ export const LiAnimation = ({
     const startTimeRef = useRef<number | null>(null);
 
     const config = useMemo(() => getLiAnimationConfig(materialId), [materialId]);
-    const sphereGeometry = useMemo(() => new THREE.SphereGeometry(liRadius, 24, 24), [liRadius]);
+    const sphereGeometry = useMemo(() => new THREE.SphereGeometry(liRadius, 32, 32), [liRadius]);
 
     const directions = useMemo(() => {
         if (liAtoms.length === 0) return [];
@@ -218,8 +218,8 @@ export const LiAnimation = ({
                 args={[sphereGeometry, undefined, liAtoms.length]}
                 frustumCulled={false}
                 renderOrder={0}
-                castShadow={true} // Shadows allowed on solid
-                receiveShadow={true}
+                castShadow={false}
+                receiveShadow={false}
             >
                 <meshPhysicalMaterial
                     {...defaultMaterialProps}

@@ -12,7 +12,9 @@ import { LiAnimation } from './LiAnimation';
 import { LabeledAxes } from './LabeledAxes';
 import { OrbitControls, Environment } from '@react-three/drei';
 import { exportScene } from '../../core/utils/Exporter';
+import { CAMERA } from '../../core/constants/geometry';
 import type { Atom } from '../../core/types';
+import type { ElementSettings, VisualSettings } from '../../types';
 
 import { ErrorBoundary } from '../UI/ErrorBoundary';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
@@ -23,7 +25,7 @@ const ElementController = ({
     onChange
 }: {
     atoms: Atom[],
-    onChange: (settings: any) => void
+    onChange: (settings: ElementSettings) => void
 }) => {
     const uniqueElements = useMemo(() => {
         if (!atoms) return [];
@@ -63,7 +65,7 @@ const ElementController = ({
     const values = useControls('⚛️ Element Settings', schema, [uniqueElements.join(',')]);
 
     useEffect(() => {
-        const settings: any = {};
+        const settings: ElementSettings = {};
         uniqueElements.forEach(el => {
             settings[el] = {
                 visible: (values as any)[`${el}_visible`] ?? true,
@@ -79,9 +81,9 @@ const ElementController = ({
 
 // --- MAIN COMPONENT ---
 interface StructureSceneProps {
-    onSpaceGroupUpdate?: (info: any) => void;
-    onElementSettingsChange?: (settings: Record<string, { visible: boolean; scale: number; color: string }>) => void;
-    onVisualSettingsChange?: (settings: any) => void;
+    onSpaceGroupUpdate?: (info: { material: string; unitCell: any }) => void;
+    onElementSettingsChange?: (settings: ElementSettings) => void;
+    onVisualSettingsChange?: (settings: VisualSettings) => void;
     liAnimating?: boolean; // When true, Li charge/discharge animation is active
     isMobile?: boolean;
 }
@@ -91,7 +93,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
     const orbitRef = useRef<any>(null);
 
     const [cifAtoms, setCifAtoms] = useState<Atom[]>([]);
-    const [elementSettings, setElementSettings] = useState<any>({});
+    const [elementSettings, setElementSettings] = useState<ElementSettings>({});
 
     // Emit element settings changes to parent
     useEffect(() => {
@@ -165,11 +167,10 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
     const {
         preset, radiusScale,
         roughness, metalness, clearcoat, transmission, ior, thickness, emissiveIntensity,
-        showPolyhedra, showPolyhedraEdges, showAxes,
-        clipXMin, clipXMax, clipYMin, clipYMax, clipZMin, clipZMax,
-        enableBloom, enableFog, fogNear, fogFar, backlightIntensity,
-        aoIntensity, aoRadius, aoDistanceFalloff, aoColor,
-        enableEthereal
+        showPolyhedra, showPolyhedraEdges, polyhedraMaterial, showAxes,
+        clipX, clipY, clipZ,
+        enableBloom, enableVignette, backlightIntensity,
+        aoIntensity, aoRadius, aoDistanceFalloff, aoColor
     } = useControls('🎨 Visual Style', {
         'Material': folder({
             preset: { options: ['Ceramic', 'Metallic', 'Matte', 'Glass', 'Plastic', 'Emissive', 'Custom'], value: 'Matte' },
@@ -187,43 +188,34 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
         'Display': folder({
             showPolyhedra: { value: true, label: 'Show Polyhedra' },
             showPolyhedraEdges: { value: true, label: 'Polyhedra Edges', render: (get) => get('🎨 Visual Style.Display.showPolyhedra') },
+            polyhedraMaterial: { options: ['Matte', 'Glass', 'Basic', 'Glossy', 'Frosted'], value: 'Matte', label: 'Polyhedra Material', render: (get) => get('🎨 Visual Style.Display.showPolyhedra') },
             showAxes: { value: false, label: 'Show Pivot' },
-        }),
+        }, { collapsed: false }),
         'Clipping': folder({
-            clipXMin: { value: 0, min: 0, max: 100, label: 'Clip X Min' },
-            clipXMax: { value: 100, min: 0, max: 100, label: 'Clip X Max' },
-            clipYMin: { value: 0, min: 0, max: 100, label: 'Clip Y Min' },
-            clipYMax: { value: 100, min: 0, max: 100, label: 'Clip Y Max' },
-            clipZMin: { value: 0, min: 0, max: 100, label: 'Clip Z Min' },
-            clipZMax: { value: 100, min: 0, max: 100, label: 'Clip Z Max' },
+            clipX: { value: [0, 100], min: 0, max: 100, label: 'Clip X' },
+            clipY: { value: [0, 100], min: 0, max: 100, label: 'Clip Y' },
+            clipZ: { value: [0, 100], min: 0, max: 100, label: 'Clip Z' },
         }),
-        'Effects (Premium AO)': folder({
-            aoIntensity: { value: 1.0, min: 0, max: 2, label: 'AO Intensity' },
-            aoRadius: { value: 5.0, min: 1, max: 10, label: 'AO Radius' },
-            aoDistanceFalloff: { value: 1.0, min: 0, max: 2, label: 'Distance Falloff' },
-            aoColor: { value: '#000000', label: 'AO Color' },
-        }),
-        'Effects (Beta)': folder({
-            enableBloom: { value: true, label: 'Enable Glow (Bloom)' },
-            enableFog: { value: true, label: 'Enable Depth Fog' },
-            fogNear: { value: 20, min: 0, max: 100, label: 'Fog Start', render: (get) => get('🎨 Visual Style.Effects (Beta).enableFog') },
-            fogFar: { value: 500, min: 50, max: 800, label: 'Fog End', render: (get) => get('🎨 Visual Style.Effects (Beta).enableFog') },
+        'Effects': folder({
+            aoIntensity: { value: 1.0, min: 0, max: 2, label: 'SSAO Intensity' },
+            aoRadius: { value: 5.0, min: 1, max: 10, label: 'SSAO Radius' },
+            aoDistanceFalloff: { value: 1.0, min: 0, max: 2, label: 'SSAO Falloff' },
+            aoColor: { value: '#000000', label: 'SSAO Color' },
+            enableBloom: { value: true, label: 'Enable Bloom' },
+            enableVignette: { value: false, label: 'Enable Vignette' },
             backlightIntensity: { value: 2.0, min: 0, max: 5, label: 'Rim Light' }
         }),
-        'Ethereal Effects': folder({
-            enableEthereal: { value: false, label: 'Enable Cloud (Li/Na)' }
-        })
     });
 
     // Handle visual setting changes
     useEffect(() => {
         if (onVisualSettingsChange) {
             onVisualSettingsChange({
-                enableBloom, enableFog, fogNear, fogFar, backlightIntensity,
+                enableBloom, enableVignette, backlightIntensity,
                 aoIntensity, aoRadius, aoDistanceFalloff, aoColor
             });
         }
-    }, [onVisualSettingsChange, enableBloom, enableFog, fogNear, fogFar, backlightIntensity, aoIntensity, aoRadius, aoDistanceFalloff, aoColor]);
+    }, [onVisualSettingsChange, enableBloom, enableVignette, backlightIntensity, aoIntensity, aoRadius, aoDistanceFalloff, aoColor]);
 
     // Listen for structure change events
     useEffect(() => {
@@ -383,13 +375,15 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
         }));
     }, [structureData, material, onSpaceGroupUpdate]);
 
-    // Debug: Check if atoms are actually generated
+    // Debug: Check if atoms are actually generated (development only)
     useEffect(() => {
-        console.log("StructureScene: structureData update:", {
-            atomCount: structureData.atoms?.length,
-            sampleAtom: structureData.atoms?.[0],
-            cellParams: structureData.cellParams
-        });
+        if (import.meta.env.DEV) {
+            console.log("StructureScene: structureData update:", {
+                atomCount: structureData.atoms?.length,
+                sampleAtom: structureData.atoms?.[0],
+                cellParams: structureData.cellParams
+            });
+        }
     }, [structureData]);
 
     // Calculate Bounding Box Center manually to ensure precise centering
@@ -421,7 +415,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
         const centerY = (minY + maxY) / 2;
         const centerZ = (minZ + maxZ) / 2;
 
-        return [-centerX, -centerY + (isMobile ? 2.0 : 0), -centerZ] as [number, number, number];
+        return [-centerX, -centerY + (isMobile ? CAMERA.MOBILE_Y_OFFSET : 0), -centerZ] as [number, number, number];
     }, [structureData.atoms, isMobile]);
     // Dynamic Clipping Planes logic
     const planes = useMemo(() => {
@@ -450,6 +444,11 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
             return (min + delta * ratio / 100) + offset;
         };
 
+        // Extract min/max from range values
+        const [clipXMin, clipXMax] = clipX;
+        const [clipYMin, clipYMax] = clipY;
+        const [clipZMin, clipZMax] = clipZ;
+
         if (clipXMin > 0) p.push(new THREE.Plane(new THREE.Vector3(1, 0, 0), -getWorldCoord(minLocalX, dx, clipXMin, offX)));
         if (clipXMax < 100) p.push(new THREE.Plane(new THREE.Vector3(-1, 0, 0), getWorldCoord(minLocalX, dx, clipXMax, offX)));
         if (clipYMin > 0) p.push(new THREE.Plane(new THREE.Vector3(0, 1, 0), -getWorldCoord(minLocalY, dy, clipYMin, offY)));
@@ -458,7 +457,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
         if (clipZMax < 100) p.push(new THREE.Plane(new THREE.Vector3(0, 0, -1), getWorldCoord(minLocalZ, dz, clipZMax, offZ)));
 
         return p;
-    }, [structureData.atoms, sceneCenterOffset, clipXMin, clipXMax, clipYMin, clipYMax, clipZMin, clipZMax]);
+    }, [structureData.atoms, sceneCenterOffset, clipX, clipY, clipZ]);
 
     // Material definitions based on preset
     const materialProps = useMemo(() => {
@@ -469,6 +468,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
             transmission: 0,
             ior: 1.5,
             thickness: 0,
+            emissive: '#000000',
             emissiveIntensity: 0
         };
 
@@ -477,8 +477,12 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
         if (preset === 'Matte') return { ...base, roughness: 1.0, metalness: 0.0, clearcoat: 0 };
         if (preset === 'Glass') return { ...base, roughness: 0, metalness: 0, transmission: 1.0, ior: 1.5, thickness: 2.0, transparent: true, opacity: 0.5 };
         if (preset === 'Plastic') return { ...base, roughness: 0.4, metalness: 0.0, clearcoat: 0.5 };
-        if (preset === 'Emissive') return { ...base, roughness: 0.5, metalness: 0, emissiveIntensity: 2.0 };
-        if (preset === 'Custom') return { roughness, metalness, clearcoat, transmission, ior, thickness, emissiveIntensity };
+        if (preset === 'Emissive') return { ...base, roughness: 0.5, metalness: 0, emissive: '#ffffff', emissiveIntensity: 2.0 };
+        if (preset === 'Custom') return {
+            roughness, metalness, clearcoat, transmission, ior, thickness,
+            emissive: emissiveIntensity > 0 ? '#ffffff' : '#000000',
+            emissiveIntensity
+        };
 
         return base;
     }, [preset, roughness, metalness, clearcoat, transmission, ior, thickness, emissiveIntensity]);
@@ -519,7 +523,6 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
                             elementSettings={elementSettings}
                             materialProps={materialProps}
                             liAnimating={liAnimating}
-                            enableEthereal={enableEthereal}
                         />
 
                         {/* Li Charge/Discharge Animation */}
@@ -531,13 +534,13 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
                             materialId={material}
                             materialProps={materialProps}
                             clippingPlanes={planes}
-                            enableEthereal={enableEthereal}
                         />
 
                         <Polyhedra
                             atoms={structureData.atoms}
                             visible={showPolyhedra}
                             showEdges={showPolyhedraEdges}
+                            material={polyhedraMaterial as 'Matte' | 'Glass' | 'Basic' | 'Glossy' | 'Frosted'}
                             clippingPlanes={planes}
                             elementSettings={elementSettings}
                         />
@@ -555,20 +558,17 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
                 autoRotate={autoRotate}
                 autoRotateSpeed={1.0}
                 dampingFactor={0.05}
-                target={[0, isMobile ? 2.0 : 0, 0]}
+                target={[0, isMobile ? CAMERA.MOBILE_Y_OFFSET : 0, 0]}
             />
         </ErrorBoundary>
     );
 };
 
 // Export Button Component
-export const ExportButton = ({ onClick }: { onClick: () => void }) => (
+export const ExportButton = ({ onClick, style = {} }: { onClick: () => void; style?: React.CSSProperties }) => (
     <button
         onClick={onClick}
         style={{
-            position: 'fixed',
-            bottom: '30px',
-            left: '30px',
             padding: '12px 24px',
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
@@ -580,7 +580,8 @@ export const ExportButton = ({ onClick }: { onClick: () => void }) => (
             boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
             transition: 'all 0.3s ease',
             zIndex: 1000,
-            pointerEvents: 'auto'
+            pointerEvents: 'auto',
+            ...style
         }}
         onMouseEnter={(e) => {
             e.currentTarget.style.transform = 'translateY(-2px)';

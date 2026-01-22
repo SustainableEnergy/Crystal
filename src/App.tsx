@@ -11,6 +11,8 @@ import { StructureSelector } from './components/UI/StructureSelector'
 import { SnapshotButton } from './components/UI/SnapshotButton'
 import { Legend } from './components/UI/Legend'
 import { useIsMobile } from './hooks/useMediaQuery'
+import { UI_LAYOUT, CAMERA } from './core/constants/geometry'
+import type { VisualSettings, ElementSetting } from './types'
 import * as THREE from 'three'
 
 // Dynamic Lights Component
@@ -58,7 +60,7 @@ function DynamicLights() {
 }
 
 function App() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [glCanvas, setGlCanvas] = useState<HTMLCanvasElement | null>(null);
   const [showExport, setShowExport] = useState(false);
   const [spaceGroupInfo, setSpaceGroupInfo] = useState({
     material: 'NCM',
@@ -76,11 +78,9 @@ function App() {
   const [showBackground, setShowBackground] = useState(true);
   const [elementColors, setElementColors] = useState<Record<string, string>>({});
   const [liAnimating, setLiAnimating] = useState(false); // Li charge/discharge animation
-  const [visualSettings, setVisualSettings] = useState<any>({
+  const [visualSettings, setVisualSettings] = useState<VisualSettings>({
     enableBloom: true,
-    enableFog: true,
-    fogNear: 10,
-    fogFar: 80,
+    enableVignette: false,
     backlightIntensity: 2.0,
     aoIntensity: 1.0,
     aoRadius: 5.0,
@@ -89,13 +89,13 @@ function App() {
   });
 
   // Handler for visual settings changes
-  const handleVisualSettingsChange = useCallback((settings: any) => {
+  const handleVisualSettingsChange = useCallback((settings: VisualSettings) => {
     setVisualSettings(settings);
   }, []);
 
   // Handler for element settings changes from StructureScene
   // Use useCallback to prevent infinite render loops when passed as prop
-  const handleElementSettingsChange = useCallback((settings: Record<string, { visible: boolean; scale: number; color: string }>) => {
+  const handleElementSettingsChange = useCallback((settings: Record<string, ElementSetting>) => {
     setElementColors(prev => {
       const colors: Record<string, string> = {};
       let changed = false;
@@ -107,12 +107,12 @@ function App() {
     });
   }, []);
 
-  const handleResetCamera = () => {
+  const handleResetCamera = useCallback(() => {
     const event = new CustomEvent('reset-camera');
     window.dispatchEvent(event);
-  };
+  }, []);
 
-  const handleStructureChange = (structure: string, ncmRatioOrCifData?: string) => {
+  const handleStructureChange = useCallback((structure: string, ncmRatioOrCifData?: string) => {
     let finalStructure = structure;
 
     if (structure === 'NCM' && ncmRatioOrCifData) {
@@ -125,23 +125,36 @@ function App() {
     });
     window.dispatchEvent(event);
     setStructureSelectorOpen(false);
-  };
+  }, []);
 
-  const handleSnapshot = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  const handleSnapshot = useCallback(() => {
+    const canvas = glCanvas;
+    if (!canvas) {
+      console.error('[handleSnapshot] Canvas not found');
+      return;
+    }
 
-    // Create high-res snapshot
-    const dataURL = canvas.toDataURL('image/png');
-    const link = document.createElement('a');
-    link.download = `cathode-${currentStructure}-${Date.now()}.png`;
-    link.href = dataURL;
-    link.click();
-  };
+    try {
+      const dataURL = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = `cathode-${currentStructure}-${Date.now()}.png`;
+      link.href = dataURL;
+      link.click();
 
-  const handleTransparentSnapshot = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+      if (import.meta.env.DEV) {
+        console.log('[handleSnapshot] Snapshot saved');
+      }
+    } catch (error) {
+      console.error('[handleSnapshot] Failed to create snapshot:', error);
+    }
+  }, [currentStructure, glCanvas]);
+
+  const handleTransparentSnapshot = useCallback(() => {
+    const canvas = glCanvas;
+    if (!canvas) {
+      console.error('[handleTransparentSnapshot] Canvas not found');
+      return;
+    }
 
     // Temporarily hide background
     setShowBackground(false);
@@ -149,18 +162,25 @@ function App() {
     // Wait for one frame to render without background
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        // Capture the canvas
-        const dataURL = canvas.toDataURL('image/png');
-        const link = document.createElement('a');
-        link.download = `cathode-${currentStructure}-transparent-${Date.now()}.png`;
-        link.href = dataURL;
-        link.click();
+        try {
+          const dataURL = canvas.toDataURL('image/png');
+          const link = document.createElement('a');
+          link.download = `cathode-${currentStructure}-transparent-${Date.now()}.png`;
+          link.href = dataURL;
+          link.click();
 
-        // Restore background immediately
-        setShowBackground(true);
+          if (import.meta.env.DEV) {
+            console.log('[handleTransparentSnapshot] Transparent snapshot saved');
+          }
+        } catch (error) {
+          console.error('[handleTransparentSnapshot] Failed:', error);
+        } finally {
+          // Restore background
+          setShowBackground(true);
+        }
       });
     });
-  };
+  }, [currentStructure, glCanvas]);
 
   // Reset animation when material changes
   useEffect(() => {
@@ -170,20 +190,15 @@ function App() {
   // Handle Snapshot requests via events
   useEffect(() => {
     const handleSnapshotRequest = (e: any) => {
-      const { transparent, resolution = 1 } = e.detail || {};
+      const { transparent } = e.detail || {};
 
-      console.log('[App] Received snapshot-request:', { transparent, resolution });
+      if (import.meta.env.DEV) {
+        console.log('[App] Received snapshot-request:', { transparent });
+      }
 
-      if (resolution > 1) {
-        console.log('[App] Dispatching high-res-snapshot event');
-        window.dispatchEvent(new CustomEvent('high-res-snapshot', {
-          detail: { transparent, resolution, currentStructure }
-        }));
-      } else if (transparent) {
-        console.log('[App] Using transparent snapshot');
+      if (transparent) {
         handleTransparentSnapshot();
       } else {
-        console.log('[App] Using normal snapshot');
         handleSnapshot();
       }
     };
@@ -192,7 +207,7 @@ function App() {
     return () => {
       window.removeEventListener('snapshot-request', handleSnapshotRequest);
     };
-  }, [currentStructure]);
+  }, [currentStructure, handleSnapshot, handleTransparentSnapshot]);
 
   // Space Group Info now handled directly via onSpaceGroupUpdate prop instead of event duplicate
 
@@ -215,28 +230,25 @@ function App() {
       {!isMobile && (
         <div style={{
           position: 'fixed',
-          top: '20px',
-          left: '20px',
-          right: '420px',
+          top: `${UI_LAYOUT.DESKTOP_TOP_MARGIN}px`,
+          left: `${UI_LAYOUT.DESKTOP_TOP_MARGIN}px`,
+          right: `${UI_LAYOUT.LEVA_PANEL_WIDTH + UI_LAYOUT.DESKTOP_TOP_MARGIN}px`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          zIndex: 100,
+          zIndex: UI_LAYOUT.Z_INDEX.HEADER,
           pointerEvents: 'none'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', pointerEvents: 'auto' }}>
-            <div>
-              <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 300, color: 'white', letterSpacing: '-0.02em' }}>
-                Cathode Visualizer
-              </h1>
-              <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.6, color: '#888' }}>
-                High-Fidelity Crystal Engine
-              </p>
-            </div>
+          <div style={{ pointerEvents: 'auto' }}>
+            <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 300, color: 'white', letterSpacing: '-0.02em' }}>
+              Cathode Visualizer
+            </h1>
+            <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.6, color: '#888' }}>
+              High-Fidelity Crystal Engine
+            </p>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', pointerEvents: 'auto' }}>
-            {/* Li Animation Toggle - Desktop */}
             <button
               onClick={() => setLiAnimating(!liAnimating)}
               style={{
@@ -261,7 +273,6 @@ function App() {
               onStructureChange={handleStructureChange}
               isMobile={false}
             />
-            <SnapshotButton isMobile={false} />
           </div>
         </div>
       )}
@@ -283,9 +294,9 @@ function App() {
         right: '0',
         left: isMobile ? '0' : 'auto',
         width: isMobile ? '100%' : 'auto',
-        zIndex: isMobile ? 998 : 999,
+        zIndex: isMobile ? UI_LAYOUT.Z_INDEX.LEVA_MOBILE : UI_LAYOUT.Z_INDEX.LEVA_DESKTOP,
         transition: 'top 0.3s ease',
-        maxHeight: isMobile ? 'calc(100vh - 56px - 70px - 10px)' : '95vh', // header + footer + padding
+        maxHeight: isMobile ? `calc(100vh - ${UI_LAYOUT.MOBILE_HEADER_HEIGHT}px - ${UI_LAYOUT.MOBILE_FOOTER_HEIGHT}px - 10px)` : '95vh',
         overflowY: 'auto',
         paddingBottom: isMobile ? '10px' : '0'
       }}>
@@ -316,7 +327,7 @@ function App() {
               toolTip: '12px'
             },
             sizes: {
-              rootWidth: isMobile ? '100%' : '400px',
+              rootWidth: isMobile ? '100%' : `${UI_LAYOUT.LEVA_PANEL_WIDTH}px`,
               controlWidth: '160px',
               scrubberWidth: '14px',
               scrubberHeight: '14px',
@@ -368,29 +379,29 @@ function App() {
 
       <div style={{
         width: '100vw',
-        height: isMobile ? 'calc(100vh - 70px)' : '100vh', // Leave space for footer on mobile
+        height: isMobile ? `calc(100vh - ${UI_LAYOUT.MOBILE_FOOTER_HEIGHT}px)` : '100vh',
         background: '#050505'
       }}>
         <Canvas
-          ref={canvasRef}
-          camera={{ position: [30, 20, 80], fov: 45 }}
+          onCreated={({ gl }) => {
+            setGlCanvas(gl.domElement);
+            setShowExport(true);
+          }}
+          camera={{ position: CAMERA.DEFAULT_POSITION, fov: CAMERA.DEFAULT_FOV }}
           dpr={[1, 2]}
           gl={{
-            antialias: false, // Disable native AA allowing Composer to handle it & prevent context conflict
+            antialias: false,
             alpha: true,
-            toneMappingExposure: 1.0,
+            toneMapping: THREE.ACESFilmicToneMapping,
+            toneMappingExposure: 1.2,
             localClippingEnabled: true,
             preserveDrawingBuffer: true,
             powerPreference: "high-performance"
-          }}
-          onCreated={() => {
-            setShowExport(true);
           }}
         >
           {showBackground && <color attach="background" args={['#0a0a0a']} />}
           <Environment preset="studio" environmentIntensity={0.4} backgroundBlurriness={0.8} />
           <DynamicLights />
-          {visualSettings.enableFog && <fog attach="fog" args={['#0a0a0a', visualSettings.fogNear, visualSettings.fogFar]} />}
           <Suspense fallback={null}>
             <StructureScene
               onSpaceGroupUpdate={setSpaceGroupInfo}
@@ -402,18 +413,19 @@ function App() {
           </Suspense>
           <ContactShadows position={[0, -2.5, 0]} opacity={0.15} scale={25} blur={3} far={4} />
           <EffectComposer multisampling={0} enableNormalPass>
-            {visualSettings.enableBloom && <Bloom luminanceThreshold={0.9} mipmapBlur intensity={0.5} radius={0.6} />}
-            <N8AO
-              intensity={visualSettings.aoIntensity}
-              aoRadius={visualSettings.aoRadius}
-              distanceFalloff={visualSettings.aoDistanceFalloff}
-              color={visualSettings.aoColor}
-              screenSpaceRadius={false}
-              halfRes={false}
-              depthAwareUpsampling={true}
-            />
-            {/* Reduced Vignette to prevent dark screen issues */}
-            <Vignette eskil={false} offset={0.1} darkness={0.2} />
+            <>
+              {visualSettings.enableBloom ? <Bloom luminanceThreshold={0.9} mipmapBlur intensity={0.5} radius={0.6} /> : null}
+              <N8AO
+                intensity={visualSettings.aoIntensity}
+                aoRadius={visualSettings.aoRadius}
+                distanceFalloff={visualSettings.aoDistanceFalloff}
+                color={visualSettings.aoColor}
+                screenSpaceRadius={false}
+                halfRes={false}
+                depthAwareUpsampling={true}
+              />
+              {visualSettings.enableVignette && <Vignette eskil={false} offset={0.1} darkness={0.2} />}
+            </>
           </EffectComposer>
         </Canvas>
       </div>
@@ -427,108 +439,119 @@ function App() {
       />
 
       {/* Desktop Footer */}
-      {!isMobile && (
-        <div style={{ position: 'absolute', bottom: 30, right: 30, pointerEvents: 'none', color: '#666', zIndex: 10, textAlign: 'right' }}>
-          <p style={{ margin: 0, fontSize: '0.8rem' }}>Universal 3D Asset Generator</p>
-        </div>
-      )}
+      {
+        !isMobile && (
+          <div style={{ position: 'absolute', bottom: 30, right: 30, pointerEvents: 'none', color: '#666', zIndex: 10, textAlign: 'right' }}>
+            <p style={{ margin: 0, fontSize: '0.8rem' }}>Universal 3D Asset Generator</p>
+          </div>
+        )
+      }
 
       {/* Mobile: Bottom Action Bar (Fixed Footer) */}
-      {isMobile && (
-        <div style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: '70px',
-          padding: '12px 16px',
-          background: '#0a0a0a',
-          borderTop: '1px solid rgba(255,255,255,0.1)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '12px',
-          zIndex: 999
-        }}>
-          <SnapshotButton isMobile={true} />
+      {
+        isMobile && (
+          <div style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: '70px',
+            padding: '12px 16px',
+            background: '#0a0a0a',
+            borderTop: '1px solid rgba(255,255,255,0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            zIndex: 999
+          }}>
+            <SnapshotButton isMobile={true} />
 
-          <button
-            onClick={handleResetCamera}
-            style={{
-              padding: '10px 20px',
-              background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-              border: 'none',
-              borderRadius: '8px',
-              color: 'white',
-              fontSize: '13px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)',
-              minHeight: '44px'
-            }}
-          >
-            Reset View
-          </button>
-        </div>
-      )}
+            <button
+              onClick={handleResetCamera}
+              style={{
+                padding: '10px 20px',
+                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                border: 'none',
+                borderRadius: '8px',
+                color: 'white',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)',
+                minHeight: '44px'
+              }}
+            >
+              Reset View
+            </button>
+          </div>
+        )
+      }
 
       {/* Desktop: Reset & Export */}
-      {!isMobile && (
-        <>
-          <button
-            onClick={handleResetCamera}
-            style={{
-              position: 'fixed',
-              bottom: '30px',
-              left: '190px',
-              padding: '12px 20px',
-              background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-              border: 'none',
-              borderRadius: '8px',
-              color: 'white',
-              fontSize: '14px',
-              fontWeight: '600',
-              boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)',
-              transition: 'all 0.3s ease',
-              zIndex: 1000,
-              pointerEvents: 'auto',
-              cursor: 'pointer'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.6)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 15px rgba(59, 130, 246, 0.4)';
-            }}
-          >
-            Reset View
-          </button>
-
-          {showExport && (
-            <div style={{ position: 'fixed', bottom: '30px', left: '30px', zIndex: 1000 }}>
-              <ExportButton onClick={() => {
-                const event = new CustomEvent('export-model');
-                window.dispatchEvent(event);
-              }} />
+      {
+        !isMobile && (
+          <div style={{
+            position: 'fixed',
+            bottom: '30px',
+            left: '30px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            zIndex: 1000,
+            pointerEvents: 'none'
+          }}>
+            {/* Snapshot Button */}
+            <div style={{ pointerEvents: 'auto' }}>
+              <SnapshotButton isMobile={false} />
             </div>
-          )}
-        </>
-      )}
+
+            {/* Buttons Row */}
+            <div style={{ display: 'flex', gap: '12px', pointerEvents: 'auto' }}>
+              <button
+                onClick={handleResetCamera}
+                style={{
+                  padding: '12px 20px',
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)',
+                  transition: 'all 0.3s ease',
+                  zIndex: 1000,
+                  pointerEvents: 'auto',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.6)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(59, 130, 246, 0.4)';
+                }}
+              >
+                Reset View
+              </button>
+
+              {showExport && (
+                <div style={{ pointerEvents: 'auto' }}>
+                  <ExportButton onClick={() => {
+                    const event = new CustomEvent('export-model');
+                    window.dispatchEvent(event);
+                  }} />
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
 
       <Legend material={currentStructure} isMobile={isMobile} customColors={elementColors} />
-
-      {(!isMobile || structureSelectorOpen) && (
-        <StructureSelector
-          currentStructure={currentStructure}
-          onStructureChange={handleStructureChange}
-          isMobile={isMobile}
-          onClose={() => setStructureSelectorOpen(false)}
-        />
-      )}
     </ErrorBoundary>
-  )
+  );
 }
 
-export default App
+export default App;
