@@ -19,15 +19,23 @@ export const MATERIAL_IDS = {
     NCM_811: 'NCM-811',
     NCM_622: 'NCM-622',
     NCM_111: 'NCM-111',
+    LMR: 'LMR',
     LFP: 'LFP',
     LMFP: 'LMFP',
+    LLO: 'LLO',
+    SIB_O3: 'SiB-Layered-O3',
+    SIB_P2: 'SiB-Layered-P2',
 } as const;
 
 // Base material families (without variant suffixes)
 export const MATERIAL_FAMILIES = {
     NCM: 'NCM',
+    LMR: 'LMR',
     LFP: 'LFP',
     LMFP: 'LMFP',
+    LLO: 'LLO',
+    SIB_O3: 'SiB-Layered-O3',
+    SIB_P2: 'SiB-Layered-P2',
 } as const;
 
 // Material metadata registry
@@ -82,6 +90,46 @@ export const MATERIALS: Record<string, MaterialMetadata> = {
         description: 'Olivine structure with Mn/Fe solid solution (35%/65%)',
         defaultUnitCell: { nx: 3, ny: 3, nz: 6 },
     },
+    [MATERIAL_IDS.LLO]: {
+        id: MATERIAL_IDS.LLO,
+        name: 'LLO',
+        displayName: 'LLO (Li₂MnO₃)',
+        spaceGroup: 'C2/m',
+        spaceGroupNumber: 12,
+        crystalSystem: 'Monoclinic',
+        description: 'Lithium-rich layered oxide with honeycomb Li/Mn ordering',
+        defaultUnitCell: { nx: 3, ny: 2, nz: 3 },
+    },
+    [MATERIAL_IDS.LMR]: {
+        id: MATERIAL_IDS.LMR,
+        name: 'LMR',
+        displayName: 'LMR (Li1.13 Ni35 Co5 Mn60)',
+        spaceGroup: 'R-3m (Solid Solution)',
+        spaceGroupNumber: 166,
+        crystalSystem: 'Trigonal',
+        description: 'Li-rich layered oxide solid solution (Li1.13 TM0.87 O2)',
+        defaultUnitCell: { nx: 6, ny: 6, nz: 3 }, // NCM-like default
+    },
+    [MATERIAL_IDS.SIB_O3]: {
+        id: MATERIAL_IDS.SIB_O3,
+        name: 'SiB-O3',
+        displayName: 'SiB-Layered-O3 (NaNi₀.₅Mn₀.₅O₂)',
+        spaceGroup: 'R-3m (166)',
+        spaceGroupNumber: 166,
+        crystalSystem: 'Trigonal',
+        description: 'Na-ion layered O3-type structure',
+        defaultUnitCell: { nx: 6, ny: 6, nz: 3 },
+    },
+    [MATERIAL_IDS.SIB_P2]: {
+        id: MATERIAL_IDS.SIB_P2,
+        name: 'SiB-P2',
+        displayName: 'SiB-Layered-P2 (Na₀.₆₇MnO₂)',
+        spaceGroup: 'P6₃/mmc (194)',
+        spaceGroupNumber: 194,
+        crystalSystem: 'Hexagonal',
+        description: 'Na-ion layered P2-type structure with prismatic Na sites',
+        defaultUnitCell: { nx: 6, ny: 6, nz: 3 },
+    },
 };
 
 // List of all supported materials (for UI display order)
@@ -91,6 +139,10 @@ export const SUPPORTED_MATERIALS = [
     MATERIALS[MATERIAL_IDS.NCM_111],
     MATERIALS[MATERIAL_IDS.LFP],
     MATERIALS[MATERIAL_IDS.LMFP],
+    MATERIALS[MATERIAL_IDS.LLO],
+    MATERIALS[MATERIAL_IDS.LMR],
+    MATERIALS[MATERIAL_IDS.SIB_O3],
+    MATERIALS[MATERIAL_IDS.SIB_P2],
 ];
 
 // Type for material family names
@@ -104,7 +156,14 @@ export const getMaterialFamily = (materialId: string): MaterialFamily => {
 // Helper function to check if material supports unit cell controls
 export const supportsUnitCellControls = (materialId: string): boolean => {
     const family = getMaterialFamily(materialId);
-    const supportedFamilies: MaterialFamily[] = [MATERIAL_FAMILIES.NCM, MATERIAL_FAMILIES.LFP, MATERIAL_FAMILIES.LMFP];
+    const supportedFamilies: MaterialFamily[] = [
+        MATERIAL_FAMILIES.NCM,
+        MATERIAL_FAMILIES.LFP,
+        MATERIAL_FAMILIES.LMFP,
+        MATERIAL_FAMILIES.LLO,
+        MATERIAL_FAMILIES.SIB_O3,
+        MATERIAL_FAMILIES.SIB_P2
+    ];
     return supportedFamilies.includes(family);
 };
 
@@ -146,6 +205,9 @@ export const MATERIAL_ELEMENTS: Record<string, string[]> = {
     'LFP': ['Li', 'Fe', 'P', 'O'],
     'LMFP': ['Li', 'Mn', 'Fe', 'P', 'O'],
     'LCO': ['Li', 'Co', 'O'],
+    'LLO': ['Li', 'Mn', 'O'],
+    'SiB-Layered-O3': ['Na', 'Ni', 'Mn', 'O'],
+    'SiB-Layered-P2': ['Na', 'Mn', 'O'],
 };
 
 // Li Animation Configuration per Material Family
@@ -174,6 +236,11 @@ export const LI_ANIMATION_CONFIG: Record<string, LiAnimationConfig> = {
     'LCO': {
         migrationAxis: 'xy',      // Layered like NCM
         extractionRate: 0.50,
+        migrationDistance: 8,
+    },
+    'LLO': {
+        migrationAxis: 'xy',      // Layered
+        extractionRate: 0.70,
         migrationDistance: 8,
     },
 };

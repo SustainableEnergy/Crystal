@@ -98,11 +98,29 @@ function App() {
   const handleElementSettingsChange = useCallback((settings: Record<string, ElementSetting>) => {
     setElementColors(prev => {
       const colors: Record<string, string> = {};
-      let changed = false;
+      const newKeys = Object.keys(settings);
+      const prevKeys = Object.keys(prev);
+
+      // Populate new colors object
       for (const [element, data] of Object.entries(settings)) {
         colors[element] = data.color;
-        if (prev[element] !== data.color) changed = true;
       }
+
+      // Check for changes (keys added/removed or colors changed)
+      let changed = false;
+
+      if (newKeys.length !== prevKeys.length) {
+        changed = true;
+      } else {
+        // Same length, check if keys and values match
+        for (const key of newKeys) {
+          if (prev[key] !== colors[key]) {
+            changed = true;
+            break;
+          }
+        }
+      }
+
       return changed ? colors : prev;
     });
   }, []);
@@ -400,7 +418,7 @@ function App() {
           }}
         >
           {showBackground && <color attach="background" args={['#0a0a0a']} />}
-          <Environment preset="studio" environmentIntensity={0.4} backgroundBlurriness={0.8} />
+          <Environment preset="studio" environmentIntensity={0.2} backgroundBlurriness={0.8} />
           <DynamicLights />
           <Suspense fallback={null}>
             <StructureScene

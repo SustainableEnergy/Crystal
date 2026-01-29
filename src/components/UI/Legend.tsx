@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ELEMENT_COLORS, MATERIAL_ELEMENTS } from '../../core/constants/materials';
+import { ELEMENT_COLORS, MATERIAL_ELEMENTS, ELEMENT_PRIORITY } from '../../core/constants/materials';
 
 interface LegendProps {
     material: string;
@@ -9,19 +9,32 @@ interface LegendProps {
 
 export const Legend = ({ material, isMobile = false, customColors }: LegendProps) => {
 
-    // Determine which elements to show based on material
+    // Determine which elements to show based on material or custom active elements
     const elementsToShow = useMemo(() => {
-        const mat = material.toUpperCase();
+        // 1. If customColors is provided (populated from active structure atoms), use those keys
+        if (customColors && Object.keys(customColors).length > 0) {
+            const activeElements = Object.keys(customColors);
+            // Sort by priority
+            return activeElements.sort((a, b) => {
+                const indexA = ELEMENT_PRIORITY.indexOf(a);
+                const indexB = ELEMENT_PRIORITY.indexOf(b);
+                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                if (indexA !== -1) return -1;
+                if (indexB !== -1) return 1;
+                return a.localeCompare(b);
+            });
+        }
 
-        // Use centralized MATERIAL_ELEMENTS mapping
+        // 2. Fallback: Use static definition based on material name
+        const mat = material.toUpperCase();
         for (const [family, elements] of Object.entries(MATERIAL_ELEMENTS)) {
             if (mat.includes(family)) {
                 return elements;
             }
         }
 
-        return Object.keys(ELEMENT_COLORS); // Fallback: show all
-    }, [material]);
+        return Object.keys(ELEMENT_COLORS);
+    }, [material, customColors]);
 
     // Get color for an element, preferring custom color if available
     const getColor = (element: string): string => {

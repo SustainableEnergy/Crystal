@@ -18,7 +18,7 @@ export const Polyhedra = ({ atoms, visible, showEdges = true, material = 'Matte'
     const polys = useMemo(() => {
         if (!visible) return [];
 
-        const centers = atoms.filter(a => ['Co', 'Ni', 'Mn', 'Fe', 'P'].includes(a.element));
+        const centers = atoms.filter(a => ['Co', 'Ni', 'Mn', 'Fe', 'P'].includes(a.element) || (a.element === 'Li' && a.layer === 'TM'));
         const geoms: { id: string, geometry: THREE.BufferGeometry, color: string, element: string }[] = [];
 
         centers.forEach(center => {
@@ -109,14 +109,14 @@ export const Polyhedra = ({ atoms, visible, showEdges = true, material = 'Matte'
             default:
                 return {
                     color,
-                    opacity: 0.5,
+                    opacity: 0.8,
                     transparent: true,
                     roughness: 0.9,
-                    metalness: 0.8,
-                    clearcoat: 0.1,
-                    clearcoatRoughness: 0.8,
+                    metalness: 0,
+                    clearcoat: 0,
+                    clearcoatRoughness: 0.9,
                     transmission: 0,
-                    thickness: 0.5,
+                    thickness: 0.2,
                     ior: 1.45,
                     reflectivity: 0.05,
                     envMapIntensity: 0.2
@@ -132,22 +132,37 @@ export const Polyhedra = ({ atoms, visible, showEdges = true, material = 'Matte'
                 const materialProps = getMaterialProps(poly.color);
                 return (
                     <mesh key={poly.id} geometry={poly.geometry}>
-                        {material === 'Basic' ? (
-                            <meshBasicMaterial
-                                {...materialProps}
-                                depthWrite={false}
+                        {/* Special rendering for TM-layer Li: High Opacity Solid */}
+                        {poly.element === 'Li' ? (
+                            <meshPhysicalMaterial
+                                color={poly.color}
+                                opacity={0.1} // Lower opacity to see inside
+                                transparent={true}
+                                roughness={0.8} // Keep matte
+                                metalness={0.0}
+                                clearcoat={0.0}
                                 side={THREE.DoubleSide}
                                 clippingPlanes={clippingPlanes}
+                                depthWrite={false} // Disable depth write for better transparency sorting
                             />
                         ) : (
-                            <meshPhysicalMaterial
-                                {...materialProps}
-                                depthWrite={false}
-                                side={THREE.DoubleSide}
-                                clippingPlanes={clippingPlanes}
-                            />
+                            material === 'Basic' ? (
+                                <meshBasicMaterial
+                                    {...materialProps}
+                                    depthWrite={false}
+                                    side={THREE.DoubleSide}
+                                    clippingPlanes={clippingPlanes}
+                                />
+                            ) : (
+                                <meshPhysicalMaterial
+                                    {...materialProps}
+                                    depthWrite={false}
+                                    side={THREE.DoubleSide}
+                                    clippingPlanes={clippingPlanes}
+                                />
+                            )
                         )}
-                        {showEdges && (
+                        {(showEdges || poly.element === 'Li') && (
                             <lineSegments>
                                 <edgesGeometry args={[poly.geometry]} />
                                 <lineBasicMaterial

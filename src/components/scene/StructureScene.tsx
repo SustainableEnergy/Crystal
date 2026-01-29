@@ -4,6 +4,10 @@ import * as THREE from 'three';
 import { generateNCM } from '../../core/builders/NCMBuilder';
 import { generateLFP } from '../../core/builders/LFPBuilder';
 import { generateLMFP } from '../../core/builders/LMFPBuilder';
+import { generateLLO } from '../../core/builders/LLOBuilder';
+import { generateLMR } from '../../core/builders/LMRBuilder';
+import { generateO3 } from '../../core/builders/O3Builder';
+import { generateP2 } from '../../core/builders/P2Builder';
 import { MATERIALS, getMaterialFamily, MATERIAL_FAMILIES, ELEMENT_COLORS, ELEMENT_PRIORITY, ELEMENT_RADII } from '../../core/constants/materials';
 import { parseCIF } from '../../core/utils/CIFParser';
 import { Atoms } from './Atoms';
@@ -49,8 +53,8 @@ const ElementController = ({
 
     const schema = useMemo(() => {
         return uniqueElements.reduce((acc, el) => {
-            // Li is visible by default, all others are hidden
-            const defaultVisible = el === 'Li';
+            // Li and Na are visible by default, all others are hidden
+            const defaultVisible = el === 'Li' || el === 'Na';
 
             acc[el] = folder({
                 [`${el}_visible`]: { value: defaultVisible, label: 'Visible' },
@@ -117,7 +121,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
     // Hierarchical Controls - Material removed from Leva
     // Hierarchical Controls - Material removed from Leva
     const [unitCellParams, setUnitCell] = useControls('Unit Cell', () => ({
-        nx: { value: defaults.nx, min: 1, max: 10, step: 1, label: 'X Repeat', render: () => [MATERIAL_FAMILIES.NCM, MATERIAL_FAMILIES.LFP, MATERIAL_FAMILIES.LMFP].includes(getMaterialFamily(material)) },
+        nx: { value: defaults.nx, min: 1, max: 10, step: 1, label: 'X Repeat', render: () => [MATERIAL_FAMILIES.NCM, MATERIAL_FAMILIES.LFP, MATERIAL_FAMILIES.LMFP, MATERIAL_FAMILIES.LLO, MATERIAL_FAMILIES.LMR, MATERIAL_FAMILIES.SIB_O3, MATERIAL_FAMILIES.SIB_P2].includes(getMaterialFamily(material)) },
         'adj_x': buttonGroup({
             '-': (get) => {
                 const val = get('Unit Cell.nx');
@@ -129,7 +133,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
             },
         }),
 
-        ny: { value: defaults.ny, min: 1, max: 10, step: 1, label: 'Y Repeat', render: () => [MATERIAL_FAMILIES.NCM, MATERIAL_FAMILIES.LFP, MATERIAL_FAMILIES.LMFP].includes(getMaterialFamily(material)) },
+        ny: { value: defaults.ny, min: 1, max: 10, step: 1, label: 'Y Repeat', render: () => [MATERIAL_FAMILIES.NCM, MATERIAL_FAMILIES.LFP, MATERIAL_FAMILIES.LMFP, MATERIAL_FAMILIES.LLO, MATERIAL_FAMILIES.LMR, MATERIAL_FAMILIES.SIB_O3, MATERIAL_FAMILIES.SIB_P2].includes(getMaterialFamily(material)) },
         'adj_y': buttonGroup({
             '-': (get) => {
                 const val = get('Unit Cell.ny');
@@ -141,7 +145,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
             },
         }),
 
-        nz: { value: defaults.nz, min: 1, max: 10, step: 1, label: 'Z Repeat', render: () => [MATERIAL_FAMILIES.NCM, MATERIAL_FAMILIES.LFP, MATERIAL_FAMILIES.LMFP].includes(getMaterialFamily(material)) },
+        nz: { value: defaults.nz, min: 1, max: 10, step: 1, label: 'Z Repeat', render: () => [MATERIAL_FAMILIES.NCM, MATERIAL_FAMILIES.LFP, MATERIAL_FAMILIES.LMFP, MATERIAL_FAMILIES.LLO, MATERIAL_FAMILIES.LMR, MATERIAL_FAMILIES.SIB_O3, MATERIAL_FAMILIES.SIB_P2].includes(getMaterialFamily(material) as any) },
         'adj_z': buttonGroup({
             '-': (get) => {
                 const val = get('Unit Cell.nz');
@@ -197,7 +201,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
             clipZ: { value: [0, 100], min: 0, max: 100, label: 'Clip Z' },
         }),
         'Effects': folder({
-            aoIntensity: { value: 1.0, min: 0, max: 2, label: 'SSAO Intensity' },
+            aoIntensity: { value: 0.3, min: 0, max: 2, label: 'SSAO Intensity' },
             aoRadius: { value: 5.0, min: 1, max: 10, label: 'SSAO Radius' },
             aoDistanceFalloff: { value: 1.0, min: 0, max: 2, label: 'SSAO Falloff' },
             aoColor: { value: '#000000', label: 'SSAO Color' },
@@ -312,7 +316,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
     // Apply lighting preset values - Refactored for cleaner logic
     const lightingValues = useMemo(() => {
         const presets = {
-            'studio': { key: 1.5, fill: 0.5, rim: 0.8, ambient: 0.5, env: 'studio' },
+            'studio': { key: 0.8, fill: 1.0, rim: 0.4, ambient: 1.0, env: 'studio' },
             'outdoor': { key: 2.0, fill: 0.8, rim: 0.3, ambient: 0.7, env: 'forest' },
             'dramatic': { key: 3.0, fill: 0.2, rim: 1.5, ambient: 0.2, env: 'city' },
             'soft': { key: 0.5, fill: 0.4, rim: 0.2, ambient: 0.9, env: 'sunset' },
@@ -335,7 +339,12 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
     const structureData = useMemo(() => {
         try {
             let data: { atoms: Atom[], unitCell?: any, params?: any };
-            const baseMaterial = getMaterialFamily(material);
+            let baseMaterial = getMaterialFamily(material);
+
+            // Special handling for SiB: Use full ID as family to match switch cases
+            if (material.startsWith('SiB-')) {
+                baseMaterial = material as any;
+            }
 
             switch (baseMaterial) {
                 case MATERIAL_FAMILIES.NCM:
@@ -346,6 +355,18 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
                     break;
                 case MATERIAL_FAMILIES.LMFP:
                     data = generateLMFP(nx, ny, nz);
+                    break;
+                case MATERIAL_FAMILIES.LLO:
+                    data = generateLLO(nx, ny, nz);
+                    break;
+                case MATERIAL_FAMILIES.LMR:
+                    data = generateLMR(nx, ny, nz);
+                    break;
+                case MATERIAL_FAMILIES.SIB_O3:
+                    data = generateO3(nx, ny, nz);
+                    break;
+                case MATERIAL_FAMILIES.SIB_P2:
+                    data = generateP2(nx, ny, nz);
                     break;
                 default:
                     if (material === 'CIF Option' || material === 'CIF') {
@@ -449,10 +470,18 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
         const [clipYMin, clipYMax] = clipY;
         const [clipZMin, clipZMax] = clipZ;
 
+
+        // Standard non-rotated mapping
+        // Clip X -> Normal (1, 0, 0)
+        // Clip Y -> Normal (0, 1, 0)
+        // Clip Z -> Normal (0, 0, 1)
+
         if (clipXMin > 0) p.push(new THREE.Plane(new THREE.Vector3(1, 0, 0), -getWorldCoord(minLocalX, dx, clipXMin, offX)));
         if (clipXMax < 100) p.push(new THREE.Plane(new THREE.Vector3(-1, 0, 0), getWorldCoord(minLocalX, dx, clipXMax, offX)));
+
         if (clipYMin > 0) p.push(new THREE.Plane(new THREE.Vector3(0, 1, 0), -getWorldCoord(minLocalY, dy, clipYMin, offY)));
         if (clipYMax < 100) p.push(new THREE.Plane(new THREE.Vector3(0, -1, 0), getWorldCoord(minLocalY, dy, clipYMax, offY)));
+
         if (clipZMin > 0) p.push(new THREE.Plane(new THREE.Vector3(0, 0, 1), -getWorldCoord(minLocalZ, dz, clipZMin, offZ)));
         if (clipZMax < 100) p.push(new THREE.Plane(new THREE.Vector3(0, 0, -1), getWorldCoord(minLocalZ, dz, clipZMax, offZ)));
 
@@ -514,37 +543,35 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
                 <Environment preset={lightingValues.env as any} blur={0.6} />
 
                 {/* Apply manual center offset to the entire group */}
-                <group position={sceneCenterOffset}>
-                    <group ref={groupRef}>
-                        <Atoms
-                            atoms={structureData.atoms}
-                            clippingPlanes={planes}
-                            radiusScale={radiusScale}
-                            elementSettings={elementSettings}
-                            materialProps={materialProps}
-                            liAnimating={liAnimating}
-                        />
+                <group ref={groupRef} position={sceneCenterOffset}>
+                    <Atoms
+                        atoms={structureData.atoms}
+                        clippingPlanes={planes}
+                        radiusScale={radiusScale}
+                        elementSettings={elementSettings}
+                        materialProps={materialProps}
+                        liAnimating={liAnimating}
+                    />
 
-                        {/* Li Charge/Discharge Animation */}
-                        <LiAnimation
-                            liAtoms={structureData.atoms.filter(a => a.element === 'Li')}
-                            isAnimating={liAnimating}
-                            liColor={elementSettings['Li']?.color || ELEMENT_COLORS['Li'] || '#0277BD'}
-                            liRadius={(ELEMENT_RADII['Li'] || 0.36) * radiusScale * (elementSettings['Li']?.scale || 1)}
-                            materialId={material}
-                            materialProps={materialProps}
-                            clippingPlanes={planes}
-                        />
+                    {/* Li Charge/Discharge Animation */}
+                    <LiAnimation
+                        liAtoms={structureData.atoms.filter(a => a.element === 'Li')}
+                        isAnimating={liAnimating}
+                        liColor={elementSettings['Li']?.color || ELEMENT_COLORS['Li'] || '#0277BD'}
+                        liRadius={(ELEMENT_RADII['Li'] || 0.36) * radiusScale * (elementSettings['Li']?.scale || 1)}
+                        materialId={material}
+                        materialProps={materialProps}
+                        clippingPlanes={planes}
+                    />
 
-                        <Polyhedra
-                            atoms={structureData.atoms}
-                            visible={showPolyhedra}
-                            showEdges={showPolyhedraEdges}
-                            material={polyhedraMaterial as 'Matte' | 'Glass' | 'Basic' | 'Glossy' | 'Frosted'}
-                            clippingPlanes={planes}
-                            elementSettings={elementSettings}
-                        />
-                    </group>
+                    <Polyhedra
+                        atoms={structureData.atoms}
+                        visible={showPolyhedra}
+                        showEdges={showPolyhedraEdges}
+                        material={polyhedraMaterial as 'Matte' | 'Glass' | 'Basic' | 'Glossy' | 'Frosted'}
+                        clippingPlanes={planes}
+                        elementSettings={elementSettings}
+                    />
                 </group>
 
                 {/* LabeledAxes outside offset group to show true rotation center (World Origin) */}
@@ -560,7 +587,7 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
                 dampingFactor={0.05}
                 target={[0, isMobile ? CAMERA.MOBILE_Y_OFFSET : 0, 0]}
             />
-        </ErrorBoundary>
+        </ErrorBoundary >
     );
 };
 

@@ -27,7 +27,7 @@ export const UI_LAYOUT = {
 
 // Camera constants
 export const CAMERA = {
-    DEFAULT_POSITION: [30, 20, 80] as [number, number, number],
-    DEFAULT_FOV: 45,
+    DEFAULT_POSITION: [46, 31, 123] as [number, number, number],
+    DEFAULT_FOV: 30,
     MOBILE_Y_OFFSET: 2.0,
 } as const;

@@ -6,6 +6,7 @@ export interface Atom {
     position: Vector3; // Cartesian coordinates
     color?: string; // Hex color override
     radius?: number; // Override default radius
+    layer?: string; // 'TM' | 'Li' specific layer identification
 }
 
 export interface UnitCellParams {
