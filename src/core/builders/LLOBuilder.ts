@@ -96,6 +96,44 @@ export const generateLLO = (nx = 1, ny = 1, nz = 1): StructureData => {
     };
 
     // 3. Supercell Generation
+    // Visual Alignment Shift (same as NCM): -1/6 to align TM layer to integers?
+    // In NCM (R-3m with c=14), NCM layers are at 0, 1/3, 2/3.
+    // LLO here is generated as stacked layers.
+    // TM is at 0. Li is at 0.5.
+    // NCM has TM at 0 (after shift 0.5->0.33->?? No wait).
+    // In LCOBuilder: "Shift -1/6: Co(0.5) -> 0.33". Wait, Co was at 0.5.
+    // Here TM is at 0.0.
+    // If we want TM at 0.0, we don't need shift? 
+    // Ah, NCM puts TM at 0 relative to what? 
+    // LCOBuilder: "Li at 0, Co at 0.5". Shift -1/6 -> Li at -0.16 (0.83), Co at 0.33.
+    // So NCM has TM at 0.33, 0.66, 0.0? 
+    // Actually visual "Base" usually is TM layer.
+    // If LLO TM is at 0.0, it's already at the "integers".
+    // But maybe user feels Li at 0.5 is "sticking out" at the top?
+    // If we shift by -0.5, Li becomes 0.0? No TM becomes -0.5.
+
+    // User said "NCM has correction". NCM Co is at 0.5 initially. 
+    // After -1/6 shift -> 0.333.
+    // So NCM TM layers are at 1/3, 2/3, 0. (0.33, 0.66, 1.0).
+    // LLO TM layers here are at 0.0.
+    // If we want LLO TM to match NCM's 0.33 style? 
+    // Or maybe the user means Li layer is at the very top/bottom and looks cut off?
+
+    // Let's try shifting so that the bulk looks centered or "Lithium doesn't stick out".
+    // If we have layers 0, 1, 2. 
+    // Top of Layer 2 is Z=3.0?
+    // Atom Z = zBase + fz*height.
+    // Li is at 0.5.
+    // Top Li is at 2.5 * height.
+    // If we shift -1/6 (relative to layer):
+    // Z -= 0.166 * height.
+    // TM becomes -0.166. Li becomes 0.333.
+    // This pushes the bottom TM layer slightly out of the box (negative).
+    // But via wrap-around (modulo), it might be 0.833.
+
+    // Let's apply exactly the same relative shift logic: -1/6.
+    const zShiftFraction = -1.0 / 6.0;
+
     for (let ix = 0; ix < nx; ix++) {
         for (let iy = 0; iy < ny; iy++) {
             // Each nz generates a 3-layer block
@@ -143,9 +181,13 @@ export const generateLLO = (nx = 1, ny = 1, nz = 1): StructureData => {
                         const y_cart = (iy + normalize(fy)) * b;
 
                         // Z is purely vertical (Upright stacking)
-                        // If fz < 0, it wraps to 1+fz?
-                        // Let's wrap fz to 0..1 for rendering inside the layer slab
-                        const fz_norm = normalize(fz);
+                        // Normalize fz first
+                        let fz_norm = normalize(fz);
+
+                        // Apply visual shift (modulo 1.0 logic handled by rendering or just absolute?)
+                        // If we shift linear Z, we just subtract.
+                        fz_norm = normalize(fz_norm + zShiftFraction);
+
                         const z_cart = zBase + (fz_norm * layerHeight);
 
                         atomList.push({

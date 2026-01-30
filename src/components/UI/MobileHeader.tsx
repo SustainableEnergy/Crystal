@@ -6,6 +6,8 @@ interface MobileHeaderProps {
     onToggleStructureSelector: () => void;
     onToggleLiAnimation?: () => void;
     liAnimating?: boolean;
+    onToggleOrthographic: () => void;
+    isOrthographic: boolean;
 }
 
 export const MobileHeader = ({
@@ -15,7 +17,9 @@ export const MobileHeader = ({
     controlsOpen,
     onToggleStructureSelector,
     onToggleLiAnimation,
-    liAnimating = false
+    liAnimating = false,
+    onToggleOrthographic,
+    isOrthographic
 }: MobileHeaderProps) => {
     return (
         <div style={{
@@ -53,6 +57,28 @@ export const MobileHeader = ({
                 }}
             >
                 Structure
+            </button>
+
+            {/* Camera Toggle */}
+            <button
+                onClick={onToggleOrthographic}
+                style={{
+                    background: isOrthographic
+                        ? 'linear-gradient(135deg, rgba(147, 51, 234, 0.4) 0%, rgba(126, 34, 206, 0.4) 100%)'
+                        : 'rgba(255, 255, 255, 0.05)',
+                    border: isOrthographic ? '2px solid rgba(147, 51, 234, 0.6)' : '2px solid rgba(102, 126, 234, 0.3)',
+                    borderRadius: '8px',
+                    padding: '8px 10px',
+                    color: '#FFF8F0',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    minHeight: '40px',
+                    boxShadow: isOrthographic ? '0 2px 8px rgba(147, 51, 234, 0.3)' : 'none',
+                    transition: 'all 0.2s ease'
+                }}
+            >
+                {isOrthographic ? 'Orth' : 'Persp'}
             </button>
 
             {/* Li Animation Toggle */}

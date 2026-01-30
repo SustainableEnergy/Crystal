@@ -8,10 +8,10 @@ import { ErrorBoundary } from './components/UI/ErrorBoundary'
 import { SpaceGroupPanel } from './components/UI/SpaceGroupPanel'
 import { MobileHeader } from './components/UI/MobileHeader'
 import { StructureSelector } from './components/UI/StructureSelector'
-import { SnapshotButton } from './components/UI/SnapshotButton'
 import { Legend } from './components/UI/Legend'
+import { ScreenshotManager } from './components/utils/ScreenshotManager'
 import { useIsMobile } from './hooks/useMediaQuery'
-import { UI_LAYOUT, CAMERA } from './core/constants/geometry'
+import { UI_LAYOUT } from './core/constants/geometry'
 import type { VisualSettings, ElementSetting } from './types'
 import * as THREE from 'three'
 
@@ -60,7 +60,6 @@ function DynamicLights() {
 }
 
 function App() {
-  const [glCanvas, setGlCanvas] = useState<HTMLCanvasElement | null>(null);
   const [showExport, setShowExport] = useState(false);
   const [spaceGroupInfo, setSpaceGroupInfo] = useState({
     material: 'NCM',
@@ -75,9 +74,10 @@ function App() {
 
   // New states
   const [currentStructure, setCurrentStructure] = useState('NCM-811');
-  const [showBackground, setShowBackground] = useState(true);
+  // const [showBackground, setShowBackground] = useState(true); // Removed unused state
   const [elementColors, setElementColors] = useState<Record<string, string>>({});
   const [liAnimating, setLiAnimating] = useState(false); // Li charge/discharge animation
+  const [isOrthographic, setIsOrthographic] = useState(false);
   const [visualSettings, setVisualSettings] = useState<VisualSettings>({
     enableBloom: true,
     enableVignette: false,
@@ -142,90 +142,51 @@ function App() {
       detail: { structure: finalStructure, cifData: structure === 'CIF Option' ? ncmRatioOrCifData : undefined }
     });
     window.dispatchEvent(event);
+    window.dispatchEvent(event);
     setStructureSelectorOpen(false);
   }, []);
 
-  const handleSnapshot = useCallback(() => {
-    const canvas = glCanvas;
-    if (!canvas) {
-      console.error('[handleSnapshot] Canvas not found');
-      return;
-    }
+  const handleAlignView = (axis: 'x' | 'y' | 'z' | 'iso') => {
+    window.dispatchEvent(new CustomEvent('align-camera', { detail: { axis } }));
+  };
 
-    try {
-      const dataURL = canvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.download = `cathode-${currentStructure}-${Date.now()}.png`;
-      link.href = dataURL;
-      link.click();
+  const [isCapturing, setIsCapturing] = useState(false);
 
-      if (import.meta.env.DEV) {
-        console.log('[handleSnapshot] Snapshot saved');
-      }
-    } catch (error) {
-      console.error('[handleSnapshot] Failed to create snapshot:', error);
-    }
-  }, [currentStructure, glCanvas]);
+  const handleHighResSnapshot = (resolution: '4K' | '8K' = '4K') => {
+    // 1. Calculate Scale dynamically
+    // 4K ~ 3840px width, 8K ~ 7680px width
+    const targetWidth = resolution === '8K' ? 7680 : 3840;
+    // Ensure minimum scale of 1 (prevent downscaling on ultra-wide monitors?)
+    // Actually if screen is 1920, scale 2 is 4K. 
+    // We limit max scale to prevent WebGL crash (max texture size usually 16k).
+    let scale = targetWidth / window.innerWidth;
 
-  const handleTransparentSnapshot = useCallback(() => {
-    const canvas = glCanvas;
-    if (!canvas) {
-      console.error('[handleTransparentSnapshot] Canvas not found');
-      return;
-    }
+    // Safety clamp: scaling too high can crash browser
+    // Limit to 12x initially (ScreenshotManager will further clamp based on actual GPU limit)
+    if (scale > 12) scale = 12;
+    if (scale < 1) scale = 1;
 
-    // Temporarily hide background
-    setShowBackground(false);
+    console.log(`[App] Snapshot ${resolution}: Scale ${scale.toFixed(2)}x`);
 
-    // Wait for one frame to render without background
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        try {
-          const dataURL = canvas.toDataURL('image/png');
-          const link = document.createElement('a');
-          link.download = `cathode-${currentStructure}-transparent-${Date.now()}.png`;
-          link.href = dataURL;
-          link.click();
+    // 2. Hide artifacts (Shadows, etc)
+    setIsCapturing(true);
 
-          if (import.meta.env.DEV) {
-            console.log('[handleTransparentSnapshot] Transparent snapshot saved');
-          }
-        } catch (error) {
-          console.error('[handleTransparentSnapshot] Failed:', error);
-        } finally {
-          // Restore background
-          setShowBackground(true);
-        }
-      });
-    });
-  }, [currentStructure, glCanvas]);
+    // 3. Wait/Trigger
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('high-res-snapshot', {
+        detail: { scale, name: `cathode-${currentStructure}-${resolution}` }
+      }));
+    }, 100);
+  };
+
+  const handleCaptureComplete = useCallback(() => {
+    setIsCapturing(false);
+  }, []);
 
   // Reset animation when material changes
   useEffect(() => {
     setLiAnimating(false);
   }, [currentStructure]);
-
-  // Handle Snapshot requests via events
-  useEffect(() => {
-    const handleSnapshotRequest = (e: any) => {
-      const { transparent } = e.detail || {};
-
-      if (import.meta.env.DEV) {
-        console.log('[App] Received snapshot-request:', { transparent });
-      }
-
-      if (transparent) {
-        handleTransparentSnapshot();
-      } else {
-        handleSnapshot();
-      }
-    };
-
-    window.addEventListener('snapshot-request', handleSnapshotRequest);
-    return () => {
-      window.removeEventListener('snapshot-request', handleSnapshotRequest);
-    };
-  }, [currentStructure, handleSnapshot, handleTransparentSnapshot]);
 
   // Space Group Info now handled directly via onSpaceGroupUpdate prop instead of event duplicate
 
@@ -241,6 +202,8 @@ function App() {
           controlsOpen={controlsOpen}
           onToggleLiAnimation={() => setLiAnimating(!liAnimating)}
           liAnimating={liAnimating}
+          onToggleOrthographic={() => setIsOrthographic(!isOrthographic)}
+          isOrthographic={isOrthographic}
         />
       )}
 
@@ -401,11 +364,10 @@ function App() {
         background: '#050505'
       }}>
         <Canvas
-          onCreated={({ gl }) => {
-            setGlCanvas(gl.domElement);
+          onCreated={() => {
+            // GlCanvas logic removed
             setShowExport(true);
           }}
-          camera={{ position: CAMERA.DEFAULT_POSITION, fov: CAMERA.DEFAULT_FOV }}
           dpr={[1, 2]}
           gl={{
             antialias: false,
@@ -417,7 +379,7 @@ function App() {
             powerPreference: "high-performance"
           }}
         >
-          {showBackground && <color attach="background" args={['#0a0a0a']} />}
+          <color attach="background" args={['#0a0a0a']} />
           <Environment preset="studio" environmentIntensity={0.2} backgroundBlurriness={0.8} />
           <DynamicLights />
           <Suspense fallback={null}>
@@ -427,9 +389,20 @@ function App() {
               onVisualSettingsChange={handleVisualSettingsChange}
               liAnimating={liAnimating}
               isMobile={isMobile}
+              isOrthographic={isOrthographic}
             />
+            <ScreenshotManager onCaptureComplete={handleCaptureComplete} />
           </Suspense>
-          <ContactShadows position={[0, -2.5, 0]} opacity={0.15} scale={25} blur={3} far={4} />
+          {!isCapturing && (
+            <ContactShadows
+              name="contact-shadows"
+              position={[0, -2.5, 0]}
+              opacity={0.15}
+              scale={25}
+              blur={3}
+              far={4}
+            />
+          )}
           <EffectComposer multisampling={0} enableNormalPass>
             <>
               {visualSettings.enableBloom ? <Bloom luminanceThreshold={0.9} mipmapBlur intensity={0.5} radius={0.6} /> : null}
@@ -477,13 +450,12 @@ function App() {
             padding: '12px 16px',
             background: '#0a0a0a',
             borderTop: '1px solid rgba(255,255,255,0.1)',
-            display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '12px',
             zIndex: 999
           }}>
-            <SnapshotButton isMobile={true} />
+            {/* Snapshot Button Removed */}
 
             <button
               onClick={handleResetCamera}
@@ -519,11 +491,102 @@ function App() {
             zIndex: 1000,
             pointerEvents: 'none'
           }}>
-            {/* Snapshot Button */}
-            <div style={{ pointerEvents: 'auto' }}>
-              <SnapshotButton isMobile={false} />
+            {/* Axis Views + High Res */}
+            <div style={{ display: 'flex', gap: '8px', pointerEvents: 'auto', marginBottom: '4px' }}>
+              {['x', 'y', 'z', 'iso'].map((axis) => (
+                <button
+                  key={axis}
+                  onClick={() => handleAlignView(axis as any)}
+                  style={{
+                    width: axis === 'iso' ? '40px' : '32px',
+                    height: '32px',
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '6px',
+                    color: 'white',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+                    e.currentTarget.style.borderColor = 'white';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                  }}
+                >
+                  {axis.toUpperCase()}
+                </button>
+              ))}
+              <button
+                key="4k"
+                onClick={() => handleHighResSnapshot('4K')}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  background: 'rgba(255, 215, 0, 0.15)', // Gold
+                  border: '1px solid rgba(255, 215, 0, 0.4)',
+                  borderRadius: '6px',
+                  color: '#ffd700',
+                  fontSize: '10px',
+                  fontWeight: '800',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s ease',
+                  marginLeft: '4px'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 215, 0, 0.3)';
+                  e.currentTarget.style.borderColor = '#ffd700';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 215, 0, 0.15)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 215, 0, 0.4)';
+                }}
+                title="4K Snapshot"
+              >
+                4K
+              </button>
+              <button
+                key="8k"
+                onClick={() => handleHighResSnapshot('8K')}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  background: 'rgba(0, 255, 255, 0.15)', // Cyan for 8K
+                  border: '1px solid rgba(0, 255, 255, 0.4)',
+                  borderRadius: '6px',
+                  color: '#00ffff',
+                  fontSize: '10px',
+                  fontWeight: '800',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s ease',
+                  marginLeft: '4px'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(0, 255, 255, 0.3)';
+                  e.currentTarget.style.borderColor = '#00ffff';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(0, 255, 255, 0.15)';
+                  e.currentTarget.style.borderColor = 'rgba(0, 255, 255, 0.4)';
+                }}
+                title="8K Ultra-Res Snapshot"
+              >
+                8K
+              </button>
             </div>
-
             {/* Buttons Row */}
             <div style={{ display: 'flex', gap: '12px', pointerEvents: 'auto' }}>
               <button
@@ -551,7 +614,38 @@ function App() {
                   e.currentTarget.style.boxShadow = '0 4px 15px rgba(59, 130, 246, 0.4)';
                 }}
               >
-                Reset View
+                Reset
+              </button>
+
+              <button
+                onClick={() => setIsOrthographic(!isOrthographic)}
+                style={{
+                  padding: '12px 16px',
+                  background: isOrthographic
+                    ? 'linear-gradient(135deg, #9333ea 0%, #7e22ce 100%)'
+                    : 'rgba(255, 255, 255, 0.08)',
+                  border: isOrthographic ? '2px solid #9333ea' : '2px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  boxShadow: isOrthographic ? '0 4px 15px rgba(147, 51, 234, 0.4)' : 'none',
+                  transition: 'all 0.3s ease',
+                  zIndex: 1000,
+                  pointerEvents: 'auto',
+                  cursor: 'pointer',
+                  minWidth: '70px'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  if (isOrthographic) e.currentTarget.style.boxShadow = '0 6px 20px rgba(147, 51, 234, 0.6)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  if (isOrthographic) e.currentTarget.style.boxShadow = '0 4px 15px rgba(147, 51, 234, 0.4)';
+                }}
+              >
+                {isOrthographic ? 'Orth' : 'Persp'}
               </button>
 
               {showExport && (

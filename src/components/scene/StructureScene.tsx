@@ -14,7 +14,7 @@ import { Atoms } from './Atoms';
 import { Polyhedra } from './Polyhedra';
 import { LiAnimation } from './LiAnimation';
 import { LabeledAxes } from './LabeledAxes';
-import { OrbitControls, Environment } from '@react-three/drei';
+import { OrbitControls, Environment, PerspectiveCamera, OrthographicCamera } from '@react-three/drei';
 import { exportScene } from '../../core/utils/Exporter';
 import { CAMERA } from '../../core/constants/geometry';
 import type { Atom } from '../../core/types';
@@ -90,11 +90,75 @@ interface StructureSceneProps {
     onVisualSettingsChange?: (settings: VisualSettings) => void;
     liAnimating?: boolean; // When true, Li charge/discharge animation is active
     isMobile?: boolean;
+    isOrthographic?: boolean;
 }
 
-export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, onVisualSettingsChange, liAnimating = false, isMobile = false }: StructureSceneProps) => {
+export const StructureScene = ({
+    onSpaceGroupUpdate,
+    onElementSettingsChange,
+    onVisualSettingsChange,
+    liAnimating = false,
+    isMobile = false,
+    isOrthographic = false
+}: StructureSceneProps) => {
     const groupRef = useRef<THREE.Group>(null);
     const orbitRef = useRef<any>(null);
+
+    // Keep track of camera position/target/zoom to sync between modes
+    const cameraStateRef = useRef<{
+        position: THREE.Vector3 | null,
+        target: THREE.Vector3 | null,
+        zoom: number
+    }>({
+        position: null,
+        target: null,
+        zoom: 40 // Default ortho zoom
+    });
+
+    // Update stored state on every control change
+    const handleControlsChange = (e: any) => {
+        if (!e?.target?.object || !e?.target?.target) return;
+
+        const camera = e.target.object;
+        const target = e.target.target;
+
+        // For Orthographic, use zoom property. For Perspective, distance matters.
+        // We calculate distance on the fly when needed.
+        const currentZoom = camera.type === 'OrthographicCamera' ? camera.zoom : 1;
+
+        cameraStateRef.current = {
+            position: camera.position.clone(),
+            target: target.clone(),
+            zoom: currentZoom
+        };
+    };
+
+    // Track previous mode to trigger synchronous updates
+    const prevIsOrthographic = useRef(isOrthographic);
+
+    // Detect mode change
+    if (prevIsOrthographic.current !== isOrthographic) {
+        const state = cameraStateRef.current;
+
+        // Only adjust ZOOM when going to Orthographic mode
+        // This prevents the "too far" issue (Zoom=1) without messing up Perspective position
+        if (isOrthographic && state.position && state.target) {
+            const distance = state.position.distanceTo(state.target);
+
+            // Calculate matching zoom based on FOV 30 geometry & Standard Screen Height
+            // Formula: Zoom = ScreenHeight / (2 * distance * tan(FOV/2))
+            // Assuming ScreenHeight ~ 900px, K = 900 / (2 * tan(15deg)) ≈ 1680 -> 1700
+            const calibrationConstant = 1700;
+            const newZoom = calibrationConstant / distance;
+
+            cameraStateRef.current.zoom = newZoom;
+        }
+
+        // When going back to Perspective, we DO NOT change position/target.
+        // We simply switch projection, respecting the user's wish to "keep settings".
+
+        prevIsOrthographic.current = isOrthographic;
+    }
 
     const [cifAtoms, setCifAtoms] = useState<Atom[]>([]);
     const [elementSettings, setElementSettings] = useState<ElementSettings>({});
@@ -255,19 +319,129 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
 
         window.addEventListener('structure-change', handleStructureChange);
 
-        // Handle Camera Reset
-        const handleResetCamera = () => {
-            if (orbitRef.current) {
-                orbitRef.current.reset();
-            }
-        };
-        window.addEventListener('reset-camera', handleResetCamera);
+        // Reset Logic moved to separate useEffect below to ensure consistent behavior
 
         return () => {
             window.removeEventListener('structure-change', handleStructureChange);
-            window.removeEventListener('reset-camera', handleResetCamera);
+            window.removeEventListener('structure-change', handleStructureChange);
         };
     }, []);
+
+    // Separate useEffect for Camera Control Events (Align & Reset)
+    useEffect(() => {
+        // Handle Camera Reset - Explicitly restore defaults
+        const handleResetCamera = () => {
+            console.log('[StructureScene] Resetting Camera to Defaults');
+            if (orbitRef.current) {
+                // Instead of reset(), we manually set position/target to ensure it matches fresh load state
+                const camera = orbitRef.current.object;
+                camera.position.set(...CAMERA.DEFAULT_POSITION);
+                if (camera.type === 'OrthographicCamera') {
+                    camera.zoom = 1; // Or calculate based on distance if needed? usually 1 is default for perspective logic
+                    // But wait, if we are in Orth mode, Zoom 1 might be too far/close?
+                    // Actually if we reset, we might want to stay in current projection?
+                    // Usually reset implies Perspective view default.
+
+                    // If user wants to keep mode but reset view:
+                    // camera.zoom = 1; 
+                    // But our "CAMERA.DEFAULT_POSITION" is for Perspective.
+                }
+
+                const targetY = isMobile ? CAMERA.MOBILE_Y_OFFSET : 0;
+                orbitRef.current.target.set(0, targetY, 0);
+
+                orbitRef.current.update();
+                setAutoRotate(true);
+
+                // Update internal ref
+                cameraStateRef.current.position = camera.position.clone();
+                cameraStateRef.current.target = orbitRef.current.target.clone();
+                cameraStateRef.current.zoom = camera.zoom;
+            }
+        };
+
+        const handleAlignCamera = (e: any) => {
+            console.log('[StructureScene] Received align-camera event', e.detail);
+            const { axis } = e.detail;
+
+            if (!orbitRef.current) {
+                console.warn('[StructureScene] orbitRef missing during alignment');
+                return;
+            }
+
+            // Stop rotation
+            setAutoRotate(false);
+
+            // Calculate distance based on DEFAULT_POSITION (Reset State)
+            // CAMERA.DEFAULT_POSITION is a vector3 array
+            const defaultPos = new THREE.Vector3().fromArray(CAMERA.DEFAULT_POSITION);
+            const distance = defaultPos.length();
+
+            const target = cameraStateRef.current.target || new THREE.Vector3(0, isMobile ? CAMERA.MOBILE_Y_OFFSET : 0, 0);
+
+            let newPos = new THREE.Vector3();
+
+            // Set position relative to target
+            // Axis Vector * Distance
+            switch (axis) {
+                case 'x':
+                    newPos.set(distance, 0, 0); // Right view
+                    break;
+                case 'y':
+                    newPos.set(0, distance, 0); // Top view
+                    break;
+                case 'z':
+                    newPos.set(0, 0, distance); // Front view
+                    break;
+                case 'iso':
+                    // Material-specific Isometric Views
+                    const isLayered = [
+                        MATERIAL_FAMILIES.NCM,
+                        MATERIAL_FAMILIES.LLO,
+                        MATERIAL_FAMILIES.SIB_O3,
+                        MATERIAL_FAMILIES.SIB_P2,
+                        'LCO' as any // Temporary cast until LCO is added to constants
+                    ].some(fam => getMaterialFamily(material) === fam);
+
+                    // Layered structures look best when viewed slightly from above to show hexagonal lattice + stacking
+                    // [1, 1, 0.5] was too low (side-like). Increased Z to 1.25 for true isometric feel.
+                    if (isLayered) {
+                        newPos.set(1, 1, 1.25).normalize().multiplyScalar(distance);
+                    } else {
+                        // Standard Isometric for others (Spinels, Olivines)
+                        newPos.set(1, 1, 1).normalize().multiplyScalar(distance);
+                    }
+                    break;
+            }
+
+            const camera = orbitRef.current.object;
+            const finalPos = target.clone().add(newPos);
+
+            camera.position.copy(finalPos);
+
+            // Special handling for Y-axis (Top view) to ensure proper orientation
+            // Without this, looking from Top might be disoriented
+            if (axis === 'y') {
+                camera.up.set(0, 0, -1); // Top of screen = -Z (Back) -> Standard Map View
+            } else {
+                camera.up.set(0, 1, 0); // Standard Y-up
+            }
+
+            orbitRef.current.update();
+            cameraStateRef.current.position = camera.position.clone();
+
+            // Force re-render of frame to update view immediately
+            // invalidate(); // If using frame loop on demand
+        };
+
+        window.addEventListener('align-camera', handleAlignCamera);
+        window.addEventListener('reset-camera', handleResetCamera);
+
+        return () => {
+            window.removeEventListener('align-camera', handleAlignCamera);
+            window.removeEventListener('reset-camera', handleResetCamera);
+        };
+    }, [isMobile]); // Re-bind if mobility changes (affects target offset)
 
     const [autoRotate, setAutoRotate] = useState(true);
     const [autoRotateSpeed, setAutoRotateSpeed] = useState(1.5);
@@ -578,14 +752,34 @@ export const StructureScene = ({ onSpaceGroupUpdate, onElementSettingsChange, on
                 {showAxes && <LabeledAxes size={5} />}
             </group>
 
+            {/* Camera Management */}
+            {isOrthographic ? (
+                <OrthographicCamera
+                    makeDefault
+                    position={cameraStateRef.current.position || CAMERA.DEFAULT_POSITION}
+                    zoom={cameraStateRef.current.zoom} // Dynamic zoom
+                    near={0.1}
+                    far={200}
+                />
+            ) : (
+                <PerspectiveCamera
+                    makeDefault
+                    position={cameraStateRef.current.position || CAMERA.DEFAULT_POSITION}
+                    fov={CAMERA.DEFAULT_FOV}
+                    near={0.1}
+                    far={200}
+                />
+            )}
+
             <OrbitControls
-                key={`orbit-${material}`}
+                key={`orbit-${material}`} // Removed isOrthographic from key to prevent re-mount
                 ref={orbitRef}
                 makeDefault
                 autoRotate={autoRotate}
                 autoRotateSpeed={1.0}
                 dampingFactor={0.05}
-                target={[0, isMobile ? CAMERA.MOBILE_Y_OFFSET : 0, 0]}
+                target={cameraStateRef.current.target || [0, isMobile ? CAMERA.MOBILE_Y_OFFSET : 0, 0]}
+                onChange={handleControlsChange}
             />
         </ErrorBoundary >
     );
@@ -596,7 +790,7 @@ export const ExportButton = ({ onClick, style = {} }: { onClick: () => void; sty
     <button
         onClick={onClick}
         style={{
-            padding: '12px 24px',
+            padding: '12px 18px',
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
             border: 'none',
@@ -619,6 +813,6 @@ export const ExportButton = ({ onClick, style = {} }: { onClick: () => void; sty
             e.currentTarget.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4)';
         }}
     >
-        Export 3D Model
+        Export
     </button>
 );
