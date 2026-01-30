@@ -108,11 +108,13 @@ export const StructureScene = ({
     const cameraStateRef = useRef<{
         position: THREE.Vector3 | null,
         target: THREE.Vector3 | null,
-        zoom: number
+        zoom: number,
+        calibratedZoom?: number // Store the zoom calculated during transition
     }>({
         position: null,
         target: null,
-        zoom: 40 // Default ortho zoom
+        zoom: 40, // Default ortho zoom
+        calibratedZoom: undefined
     });
 
     // Update stored state on every control change
@@ -152,6 +154,7 @@ export const StructureScene = ({
             const newZoom = calibrationConstant / distance;
 
             cameraStateRef.current.zoom = newZoom;
+            cameraStateRef.current.calibratedZoom = newZoom; // Persist this for reset/material change
         }
 
         // When going back to Perspective, we DO NOT change position/target.
@@ -345,12 +348,10 @@ export const StructureScene = ({
 
                 // 3. Adjust Zoom if Orthographic
                 if (camera.type === 'OrthographicCamera') {
-                    // Recalculate Zoom for Orthographic Camera based on consistent framing logic
-                    const distance = camera.position.distanceTo(orbitRef.current.target);
-                    // Formula: Zoom = ScreenHeight / (2 * distance * tan(FOV/2))
-                    // Using calibration constant 1700 as derived in mode switch logic
-                    const calibrationConstant = 1700;
-                    camera.zoom = calibrationConstant / distance;
+                    // Use calibrated zoom if available, otherwise default
+                    // This ensures the "first switch" calibration is inherited
+                    const preservedZoom = cameraStateRef.current.calibratedZoom || CAMERA.DEFAULT_ORTHO_ZOOM;
+                    camera.zoom = preservedZoom;
                     camera.updateProjectionMatrix();
                 }
 
@@ -784,6 +785,8 @@ export const StructureScene = ({
                 dampingFactor={0.05}
                 target={cameraStateRef.current.target || [0, isMobile ? CAMERA.MOBILE_Y_OFFSET : 0, 0]}
                 onChange={handleControlsChange}
+                minPolarAngle={0}
+                maxPolarAngle={Math.PI} // Allow full vertical rotation (0 to 180 deg)
             />
         </ErrorBoundary >
     );
