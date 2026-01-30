@@ -335,20 +335,24 @@ export const StructureScene = ({
             if (orbitRef.current) {
                 // Instead of reset(), we manually set position/target to ensure it matches fresh load state
                 const camera = orbitRef.current.object;
-                camera.position.set(...CAMERA.DEFAULT_POSITION);
-                if (camera.type === 'OrthographicCamera') {
-                    camera.zoom = 1; // Or calculate based on distance if needed? usually 1 is default for perspective logic
-                    // But wait, if we are in Orth mode, Zoom 1 might be too far/close?
-                    // Actually if we reset, we might want to stay in current projection?
-                    // Usually reset implies Perspective view default.
 
-                    // If user wants to keep mode but reset view:
-                    // camera.zoom = 1; 
-                    // But our "CAMERA.DEFAULT_POSITION" is for Perspective.
-                }
-
+                // 1. Reset Target first to calculate distance correctly
                 const targetY = isMobile ? CAMERA.MOBILE_Y_OFFSET : 0;
                 orbitRef.current.target.set(0, targetY, 0);
+
+                // 2. Reset Position
+                camera.position.set(...CAMERA.DEFAULT_POSITION);
+
+                // 3. Adjust Zoom if Orthographic
+                if (camera.type === 'OrthographicCamera') {
+                    // Recalculate Zoom for Orthographic Camera based on consistent framing logic
+                    const distance = camera.position.distanceTo(orbitRef.current.target);
+                    // Formula: Zoom = ScreenHeight / (2 * distance * tan(FOV/2))
+                    // Using calibration constant 1700 as derived in mode switch logic
+                    const calibrationConstant = 1700;
+                    camera.zoom = calibrationConstant / distance;
+                    camera.updateProjectionMatrix();
+                }
 
                 orbitRef.current.update();
                 setAutoRotate(true);
