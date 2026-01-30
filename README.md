@@ -291,6 +291,19 @@ npm run build
   - **불필요 요소 제거**: 구형 스냅샷 아이콘 등 중복 UI 정리
   - **모바일 최적화**: 헤더 레이아웃 개선
 
+### v1.7.1 - 하이브리드 컨트롤 및 줌 개선
+- 🔄 **하이브리드 회전 제어 (Hybrid Controls)**:
+  - **Auto-rotate 모드**: `OrbitControls`를 사용하여 안정적인 자동 회전 제공 (Li Cycle 등)
+  - **Manual 모드**: 자동 회전이 꺼지면 `TrackballControls`로 자동 전환되어, 수직 제한(Gimbal Lock) 없는 **무한 자유 회전** 지원
+- 📐 **지능형 정투영(Orthographic) 캘리브레이션**:
+  - 화면 해상도(Viewport Height)를 실시간으로 감지하여 Perspective 뷰와 완벽하게 일치하는 Zoom 비율 자동 계산
+  - Perspective ↔ Orthographic 모드 전환 시 카메라 타겟 및 줌 상태가 완벽하게 동기화/보존됨
+- 🧪 **LLO 구조 개선**:
+  - Z축 적층 시 발생하던 비정상적인 원자 배치(Wrap-around) 문제 해결
+  - 상/하단 마감 처리를 물리적으로 정확하게 개선하여 산소/리튬 층이 자연스럽게 종료되도록 수정
+- 🛠️ **코드 안정성**: 미사용 리소스 정리 및 린트 에러 완전 해결
+
+
 ### v1.6.0 - 나트륨 전지(SiB) 및 LMR 고도화
 - 🔋 **나트륨 이온 전지(SiB) 지원**:
   - **O3-type**: NCM과 유사한 3층 능면체 구조 ($R\bar{3}m$, $NaNi_{0.5}Mn_{0.5}O_2$)

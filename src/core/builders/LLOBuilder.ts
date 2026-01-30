@@ -181,12 +181,12 @@ export const generateLLO = (nx = 1, ny = 1, nz = 1): StructureData => {
                         const y_cart = (iy + normalize(fy)) * b;
 
                         // Z is purely vertical (Upright stacking)
-                        // Normalize fz first
-                        let fz_norm = normalize(fz);
+                        // Use raw fractional Z. Do NOT normalize.
+                        // Normalizing wraps -0.23 to 0.77, creating invalid floating atoms.
+                        let fz_norm = fz;
 
-                        // Apply visual shift (modulo 1.0 logic handled by rendering or just absolute?)
-                        // If we shift linear Z, we just subtract.
-                        fz_norm = normalize(fz_norm + zShiftFraction);
+                        // Apply visual shift (linear subtraction, no modulo)
+                        fz_norm = fz_norm + zShiftFraction;
 
                         const z_cart = zBase + (fz_norm * layerHeight);
 

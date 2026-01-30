@@ -14,7 +14,8 @@ import { Atoms } from './Atoms';
 import { Polyhedra } from './Polyhedra';
 import { LiAnimation } from './LiAnimation';
 import { LabeledAxes } from './LabeledAxes';
-import { OrbitControls, Environment, PerspectiveCamera, OrthographicCamera } from '@react-three/drei';
+import { useThree } from '@react-three/fiber';
+import { TrackballControls, Environment, PerspectiveCamera, OrthographicCamera, OrbitControls } from '@react-three/drei';
 import { exportScene } from '../../core/utils/Exporter';
 import { CAMERA } from '../../core/constants/geometry';
 import type { Atom } from '../../core/types';
@@ -101,6 +102,7 @@ export const StructureScene = ({
     isMobile = false,
     isOrthographic = false
 }: StructureSceneProps) => {
+    const { size } = useThree();
     const groupRef = useRef<THREE.Group>(null);
     const orbitRef = useRef<any>(null);
 
@@ -117,6 +119,7 @@ export const StructureScene = ({
         calibratedZoom: undefined
     });
 
+
     // Update stored state on every control change
     const handleControlsChange = (e: any) => {
         if (!e?.target?.object || !e?.target?.target) return;
@@ -129,6 +132,7 @@ export const StructureScene = ({
         const currentZoom = camera.type === 'OrthographicCamera' ? camera.zoom : 1;
 
         cameraStateRef.current = {
+            ...cameraStateRef.current,
             position: camera.position.clone(),
             target: target.clone(),
             zoom: currentZoom
@@ -149,9 +153,9 @@ export const StructureScene = ({
 
             // Calculate matching zoom based on FOV 30 geometry & Standard Screen Height
             // Formula: Zoom = ScreenHeight / (2 * distance * tan(FOV/2))
-            // Assuming ScreenHeight ~ 900px, K = 900 / (2 * tan(15deg)) ≈ 1680 -> 1700
-            const calibrationConstant = 1700;
-            const newZoom = calibrationConstant / distance;
+            // FOV is defined in CAMERA.DEFAULT_FOV (30 deg)
+            const k = size.height / (2 * Math.tan(THREE.MathUtils.degToRad(CAMERA.DEFAULT_FOV / 2)));
+            const newZoom = k / distance;
 
             cameraStateRef.current.zoom = newZoom;
             cameraStateRef.current.calibratedZoom = newZoom; // Persist this for reset/material change
@@ -348,10 +352,11 @@ export const StructureScene = ({
 
                 // 3. Adjust Zoom if Orthographic
                 if (camera.type === 'OrthographicCamera') {
-                    // Use calibrated zoom if available, otherwise default
-                    // This ensures the "first switch" calibration is inherited
-                    const preservedZoom = cameraStateRef.current.calibratedZoom || CAMERA.DEFAULT_ORTHO_ZOOM;
-                    camera.zoom = preservedZoom;
+                    // Recalculate based on current (reset) distance to ensure correct framing
+                    const distance = camera.position.distanceTo(orbitRef.current.target);
+                    // Use dynamic calibration factor based on active viewport height
+                    const k = size.height / (2 * Math.tan(THREE.MathUtils.degToRad(CAMERA.DEFAULT_FOV / 2)));
+                    camera.zoom = k / distance;
                     camera.updateProjectionMatrix();
                 }
 
@@ -776,18 +781,33 @@ export const StructureScene = ({
                 />
             )}
 
-            <OrbitControls
-                key={`orbit-${material}`} // Removed isOrthographic from key to prevent re-mount
-                ref={orbitRef}
-                makeDefault
-                autoRotate={autoRotate}
-                autoRotateSpeed={1.0}
-                dampingFactor={0.05}
-                target={cameraStateRef.current.target || [0, isMobile ? CAMERA.MOBILE_Y_OFFSET : 0, 0]}
-                onChange={handleControlsChange}
-                minPolarAngle={0}
-                maxPolarAngle={Math.PI} // Allow full vertical rotation (0 to 180 deg)
-            />
+            {autoRotate ? (
+                <OrbitControls
+                    key={`orbit-${material}`}
+                    ref={orbitRef}
+                    makeDefault
+                    autoRotate={true}
+                    autoRotateSpeed={1.0}
+                    dampingFactor={0.05}
+                    target={cameraStateRef.current.target || [0, isMobile ? CAMERA.MOBILE_Y_OFFSET : 0, 0]}
+                    onChange={handleControlsChange}
+                    minPolarAngle={0}
+                    maxPolarAngle={Math.PI}
+                />
+            ) : (
+                <TrackballControls
+                    key={`trackball-${material}`}
+                    ref={orbitRef}
+                    makeDefault
+                    rotateSpeed={3.0}
+                    zoomSpeed={1.2}
+                    panSpeed={0.8}
+                    staticMoving={false}
+                    dynamicDampingFactor={0.1}
+                    target={cameraStateRef.current.target || [0, isMobile ? CAMERA.MOBILE_Y_OFFSET : 0, 0]}
+                    onChange={handleControlsChange}
+                />
+            )}
         </ErrorBoundary >
     );
 };

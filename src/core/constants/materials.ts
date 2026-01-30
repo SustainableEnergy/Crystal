@@ -98,7 +98,7 @@ export const MATERIALS: Record<string, MaterialMetadata> = {
         spaceGroupNumber: 12,
         crystalSystem: 'Monoclinic',
         description: 'Lithium-rich layered oxide with honeycomb Li/Mn ordering',
-        defaultUnitCell: { nx: 3, ny: 2, nz: 3 },
+        defaultUnitCell: { nx: 4, ny: 2, nz: 2 },
     },
     [MATERIAL_IDS.LMR]: {
         id: MATERIAL_IDS.LMR,
